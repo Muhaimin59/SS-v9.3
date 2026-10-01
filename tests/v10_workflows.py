@@ -294,6 +294,22 @@ def main():
     if skill:
         status, data = jpost(admin, f"/admin/v10/skill/{skill['id']}/verify", {"result": "VERIFIED", "method": "ASSESSMENT"})
         ok("admin verifies skill", status == 200, f"{status} {str(data)[:200]}")
+    body = admin.get("/admin/v10").get_data(as_text=True)
+    ok("admin console shows lifecycle report", "Lifecycle report" in body and "Risk level controls" in body)
+    with app.app_context():
+        connection = get_db_connection()
+        target = connection.execute("SELECT id, risk_level FROM services WHERE name='Electrical'").fetchone()
+        connection.close()
+    if target:
+        status, data = jpost(admin, "/admin/v10/service", {"service_id": target["id"], "risk_level": "RESTRICTED"})
+        ok("admin can change a service risk level", status == 200, f"{status} {str(data)[:160]}")
+        with app.app_context():
+            connection = get_db_connection()
+            updated = connection.execute("SELECT risk_level FROM services WHERE id=?", (target["id"],)).fetchone()["risk_level"]
+            connection.close()
+        ok("risk level persisted", updated == "RESTRICTED", updated)
+        # restore so later checks keep the original catalogue state
+        jpost(admin, "/admin/v10/service", {"service_id": target["id"], "risk_level": target["risk_level"]})
 
     print(f"\n{len(PASSED)} passed, {len(FAILED)} failed")
     for item in FAILED:

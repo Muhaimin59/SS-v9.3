@@ -19,7 +19,7 @@ profiles, verification centre, provider mission brief and operations console.
 
 Nothing was removed: the V9.3 routes, tables, templates and APIs are all still present and were
 verified by a dedicated regression suite. Demo, smoke and end-to-end suites pass
-(36/36, 44/44, 25/25), and the app was exercised over real HTTP on `0.0.0.0:5000`.
+(36/36, 47/47, 25/25), and the app was exercised over real HTTP on `0.0.0.0:5000`.
 
 ---
 
@@ -319,8 +319,11 @@ completion proof and certificate.
 ## R. Admin, pricing, security, and limitations
 
 **Admin `/admin/v10`:** counts for assets, missions, active missions, certificates, open recovery,
-second opinions, pending skills, pending certifications and parts; mission table, recovery cases,
-skill verification queue with actions, certification review, and category/risk/service editing.
+second opinions, pending skills, pending certifications and parts; a live lifecycle report
+(missions completed, passports, certificates, recovery resolution, black-box evidence, parts value
+estimated→approved, skills verified), mission table, recovery cases, skill verification queue with
+actions, certification review, an inline service risk-level / allowed-provider-type editor, and
+category creation.
 Disputes, fraud signals, SOS and payments remain in the V9.3 operations console, unchanged.
 
 **Pricing:** V9.3 negotiation is untouched. V10 keeps every price visible and distinct — AI range,
@@ -347,7 +350,7 @@ silently "fixed" (see changelog §9).
 ### S1. How the work was verified
 
 * `tests/v10_smoke_test.py` — 36 checks, all pass (pages, APIs, PWA, admin, role gating).
-* `tests/v10_workflows.py` — 44 checks, all pass; includes the real legacy completion chain
+* `tests/v10_workflows.py` — 47 checks, all pass; includes the real legacy completion chain
   (ARRIVED → confirmation code → completion proof → customer verification photo → payment gate),
   certificate issuance, recovery opening/action, OTP verification, skill gating refusal and
   privacy assertions on the public passport page.

@@ -76,6 +76,45 @@
     {% else %}<p class="muted small" style="margin:0">No certifications submitted.</p>{% endfor %}
   </div>
 
+  <div class="card reveal d2" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">📊 Lifecycle report</h3>
+    <div class="cert-line"><span>Missions completed</span><span>{{ report['missions_completed'] }} / {{ counts['missions'] }}</span></div>
+    <div class="cert-line"><span>Service passports</span><span>{{ report['passports'] }}</span></div>
+    <div class="cert-line"><span>Certificates issued</span><span>{{ report['certificates'] }}</span></div>
+    <div class="cert-line"><span>Second opinions requested</span><span>{{ report['second_opinions'] }}</span></div>
+    <div class="cert-line"><span>Recovery cases resolved</span><span>{{ report['recovery_resolved'] }} / {{ report['recovery_total'] }}</span></div>
+    <div class="cert-line"><span>Black-box evidence items</span><span>{{ report['evidence_items'] }}</span></div>
+    <div class="cert-line"><span>Parts value (estimated → approved)</span><span>₹{{ report['parts_estimated_value']|int }} → ₹{{ report['parts_approved_value']|int }}</span></div>
+    <div class="cert-line"><span>Skills verified</span><span>{{ report['skills_verified'] }} / {{ report['skills_total'] }}</span></div>
+    <p class="muted tiny">All numbers are computed live from the database. Nothing here is estimated or padded.</p>
+  </div>
+
+  <div class="card reveal d3" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">⚠️ Risk level controls</h3>
+    <p class="muted small" style="margin:0 0 10px">Change the risk level, required certification or allowed provider type of a service. Higher risk restricts which providers the matching engine can send the job to.</p>
+    {% for service in risk_services %}
+    <form class="admin-row risk-row" data-service-id="{{ service['id'] }}">
+      <div style="min-width:0">
+        <strong class="small">{{ service['name'] }}</strong>
+        <span class="muted tiny" style="display:block">{{ service['category'] }}{% if service['required_certification'] %} · requires {{ service['required_certification'] }}{% endif %}</span>
+      </div>
+      <div class="v10-row wrap" style="gap:6px">
+        <select class="input" name="risk_level" style="width:auto;padding:6px 8px;font-size:12px">
+          {% for level in ['LOW','MEDIUM','HIGH','RESTRICTED'] %}
+          <option value="{{ level }}" {% if service['risk_level'] == level %}selected{% endif %}>{{ level|title }}</option>
+          {% endfor %}
+        </select>
+        <select class="input" name="allowed_provider_types" style="width:auto;padding:6px 8px;font-size:12px">
+          {% for option, label in [('any','Any'),('professional','Professional only'),('professional,student','Professional + supervised student')] %}
+          <option value="{{ option }}" {% if (service['allowed_provider_types'] or 'any') == option %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn ghost xs" type="submit">Save</button>
+      </div>
+    </form>
+    {% endfor %}
+  </div>
+
   <div class="card reveal d3" style="margin-top:12px">
     <div class="v10-row between"><h3 style="margin:0">🗂️ Catalogue &amp; risk levels</h3>
       <button class="btn ghost xs" type="button" onclick="v10Sheet('categorySheet')">＋ Category</button></div>
@@ -127,6 +166,21 @@ async function v10AdminCert(certId, action, button) {
     setTimeout(function () { location.reload(); }, 600);
   } catch (error) { v10Toast(error.message, 'error'); restore(); }
 }
+document.querySelectorAll('form.risk-row').forEach(function (form) {
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    var button = form.querySelector('button[type="submit"]');
+    var restore = v10Loading(button, 'Saving…');
+    try {
+      await v10Api('/admin/v10/service', { method: 'POST', body: {
+        service_id: form.dataset.serviceId,
+        risk_level: form.querySelector('[name=risk_level]').value,
+        allowed_provider_types: form.querySelector('[name=allowed_provider_types]').value
+      }});
+      v10Toast('Service controls updated.', 'success');
+    } catch (error) { v10Toast(error.message, 'error'); restore(); }
+  });
+});
 document.getElementById('categoryForm').addEventListener('submit', async function (event) {
   event.preventDefault();
   var button = event.target.querySelector('button[type=submit]');

@@ -3081,12 +3081,49 @@ def admin_v10():
             FROM service_categories c ORDER BY c.sort_order
             """
         ).fetchall()
+        report = {
+            "missions_completed": connection.execute(
+                "SELECT COUNT(*) c FROM service_missions WHERE status='COMPLETED'"
+            ).fetchone()["c"],
+            "recovery_resolved": connection.execute(
+                "SELECT COUNT(*) c FROM service_recovery_cases WHERE status IN ('RESOLVED','CLOSED')"
+            ).fetchone()["c"],
+            "recovery_total": connection.execute(
+                "SELECT COUNT(*) c FROM service_recovery_cases"
+            ).fetchone()["c"],
+            "evidence_items": connection.execute(
+                "SELECT COUNT(*) c FROM service_evidence"
+            ).fetchone()["c"],
+            "parts_estimated_value": connection.execute(
+                "SELECT COALESCE(SUM(COALESCE(unit_price_max, unit_price_min, 0) * COALESCE(quantity,1)),0) v "
+                "FROM service_parts"
+            ).fetchone()["v"],
+            "parts_approved_value": connection.execute(
+                "SELECT COALESCE(SUM(COALESCE(unit_price_max, unit_price_min, 0) * COALESCE(quantity,1)),0) v "
+                "FROM service_parts WHERE approval_status IN ('APPROVED','NOT_REQUIRED')"
+            ).fetchone()["v"],
+            "skills_verified": connection.execute(
+                "SELECT COUNT(*) c FROM student_skills WHERE status='VERIFIED'"
+            ).fetchone()["c"],
+            "skills_total": connection.execute("SELECT COUNT(*) c FROM student_skills").fetchone()["c"],
+            "passports": counts["assets"],
+            "certificates": counts["certificates"],
+            "second_opinions": counts["second_opinions"],
+        }
+        risk_services = connection.execute(
+            """
+            SELECT id, name, category, risk_level, required_certification, allowed_provider_types
+            FROM services WHERE is_active IS NOT 0
+            ORDER BY CASE risk_level WHEN 'RESTRICTED' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END,
+                     name LIMIT 25
+            """
+        ).fetchall()
         connection.commit()
     finally:
         connection.close()
     return render_template(
         "v10/admin.html", counts=counts, missions=missions, cases=cases, skills=skills,
-        certifications=certifications, categories=categories,
+        certifications=certifications, categories=categories, report=report, risk_services=risk_services,
     )
 
 
