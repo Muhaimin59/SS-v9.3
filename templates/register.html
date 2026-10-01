@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}SmartServe · Create account{% endblock %}
+{% block head %}
+<style>
+.auth-layout{width:min(1120px,100%);margin:auto;padding:26px 18px 60px;display:grid;grid-template-columns:.9fr 1.1fr;gap:26px;align-items:start;min-height:100vh}
+.auth-intro{position:sticky;top:26px;border-radius:var(--radius-xl);padding:34px;color:#fff;background:linear-gradient(150deg,#1552e6,#1f86fb 55%,#26b6e6);box-shadow:0 24px 50px rgba(26,99,240,.28);overflow:hidden}
+.auth-intro:before{content:"";position:absolute;width:360px;height:360px;right:-120px;top:-160px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.25),transparent 65%)}
+.auth-intro h1{color:#fff;font-size:clamp(28px,3.4vw,40px);line-height:1.08;margin:14px 0 12px}
+.auth-intro p{opacity:.92;font-size:15px;line-height:1.7;max-width:420px}
+.intro-features{display:grid;gap:10px;margin-top:22px}
+.intro-feature{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);font-weight:600;font-size:13.5px;backdrop-filter:blur(6px)}
+.intro-feature-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.2);font-size:17px}
+.auth-brand{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.auth-brand .brand{color:#fff}.auth-brand .brand>span:last-child span{color:#dcecff}
+.register-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-xl);padding:30px;box-shadow:var(--shadow-lg)}
+.register-card h2{font-size:26px;margin:4px 0 6px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.form-grid .full{grid-column:1/-1}
+.pw-wrap{position:relative}
+.pw-wrap .input{padding-right:46px}
+.eye-button{position:absolute;right:8px;top:50%;transform:translateY(-50%);margin-top:-3px;border:0;background:transparent;cursor:pointer;font-size:16px;color:var(--muted);padding:6px;border-radius:8px}
+.eye-button:hover{background:var(--card2);color:var(--text)}
+.pw-meter{height:6px;border-radius:6px;background:var(--card3);overflow:hidden;margin:-6px 0 8px}
+.pw-meter span{display:block;height:100%;width:0;border-radius:6px;background:var(--red);transition:width var(--t),background var(--t)}
+.pw-status{font-size:11.5px;color:var(--muted);margin:0 0 10px;min-height:16px}
+.provider-fields{display:none;margin-top:6px;padding-top:14px;border-top:1px dashed var(--line)}
+.provider-fields.show{display:block;animation:fadeUp var(--t-slow) var(--ease)}
+.bottom-text{margin:18px 0 0;text-align:center;color:var(--muted);font-size:13px}
+.bottom-text a{color:var(--blue);font-weight:800}
+.auth-flash{margin:0 0 14px}
+@media(max-width:900px){.auth-layout{grid-template-columns:1fr;padding:14px 12px 50px}.auth-intro{position:relative;top:auto;padding:24px}.intro-features{grid-template-columns:1fr 1fr}.register-card{padding:22px}}
+@media(max-width:560px){.form-grid{grid-template-columns:1fr}.intro-features{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+{% set preset_role = request.args.get('role','') %}
+<div class="auth-layout">
+  <aside class="auth-intro reveal">
+    <div class="auth-brand">
+      <a class="brand" href="{{ url_for('home') }}"><span class="brand-icon">⌂</span><span>Smart<span>Serve</span></span></a>
+      <button class="icon-btn" type="button" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode" style="background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3);color:#fff"><span id="themeIcon">☾</span></button>
+    </div>
+    <h1>Join SmartServe.<br>Serve smarter.</h1>
+    <p>Create your account to book verified local professionals — or to offer your own skills and earn in your free time.</p>
+    <div class="intro-features">
+      <div class="intro-feature"><span class="intro-feature-icon">🤖</span>AI problem analysis & fair price estimates</div>
+      <div class="intro-feature"><span class="intro-feature-icon">📍</span>Live GPS tracking with real road ETA</div>
+      <div class="intro-feature"><span class="intro-feature-icon">🛡️</span>SOS, trusted contacts & 7-day warranty</div>
+      <div class="intro-feature"><span class="intro-feature-icon">⭐</span>Portfolio, badges and verified reviews</div>
+    </div>
+  </aside>
+
+  <section class="register-card reveal">
+    <span class="eyebrow">Create your account</span>
+    <h2>Let’s get you started</h2>
+    <p class="muted" style="margin-bottom:16px">Takes about a minute. You can complete your profile later.</p>
+
+    <a class="google-btn" href="{{ url_for('google_login') }}"><span style="font-size:19px;color:#4285f4;font-weight:900">G</span> Continue with Google</a>
+    <div class="divider">or register with email</div>
+
+    <form method="POST" id="registerForm" novalidate onsubmit="return validateRegistration(event)" data-no-busy>
+      <div class="form-grid">
+        <label class="field full">
+          <span style="font-size:12px;font-weight:800;display:block;margin:10px 0 4px">Full name</span>
+          <input class="input" id="name" type="text" name="name" placeholder="e.g. Priya Sharma" autocomplete="name" required minlength="2" value="{{ request.form.get('name','') }}">
+        </label>
+        <label class="field full">
+          <span style="font-size:12px;font-weight:800;display:block;margin:6px 0 4px">Email address</span>
+          <input class="input" id="email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required value="{{ request.form.get('email','') }}">
+        </label>
+        <div class="field">
+          <span style="font-size:12px;font-weight:800;display:block;margin:6px 0 4px">Password</span>
+          <div class="pw-wrap"><input class="input" id="password" type="password" name="password" placeholder="At least 6 characters" autocomplete="new-password" required minlength="6" oninput="checkPassword()"><button type="button" class="eye-button" onclick="togglePassword('password',this)" aria-label="Show password">👁</button></div>
+          <div class="pw-meter"><span id="pwMeter"></span></div>
+        </div>
+        <div class="field">
+          <span style="font-size:12px;font-weight:800;display:block;margin:6px 0 4px">Confirm password</span>
+          <div class="pw-wrap"><input class="input" id="confirmPassword" type="password" placeholder="Re-enter your password" autocomplete="new-password" required oninput="checkPassword()"><button type="button" class="eye-button" onclick="togglePassword('confirmPassword',this)" aria-label="Show password">👁</button></div>
+          <p class="pw-status" id="passwordStatus"></p>
+        </div>
+      </div>
+
+      <span style="font-size:12px;font-weight:800;display:block;margin:4px 0 6px">I want to…</span>
+      <div class="role-switch">
+        <label class="role-option">
+          <input type="radio" name="role" value="customer" {% if (request.form.get('role') or preset_role) == 'customer' %}checked{% endif %} onchange="setRole('customer')">
+          <span class="role-body"><span class="big">👤</span><strong>Get help</strong><span>Book trusted local professionals</span></span>
+        </label>
+        <label class="role-option">
+          <input type="radio" name="role" value="provider" {% if (request.form.get('role') or preset_role) == 'provider' %}checked{% endif %} onchange="setRole('provider')">
+          <span class="role-body"><span class="big">🧑‍🔧</span><strong>Offer my skills</strong><span>Earn as a service provider</span></span>
+        </label>
+      </div>
+      <div class="error-text" id="roleError" style="display:none;color:var(--red);font-size:12px;font-weight:700;margin:-6px 0 8px">Choose how you want to use SmartServe.</div>
+
+      <div class="provider-fields" id="providerFields">
+        <span class="eyebrow">Provider details</span>
+        <h3 style="margin:6px 0 2px">Which services do you offer?</h3>
+        <p class="muted" style="margin-bottom:10px">Pick every service you can deliver. Customers only see providers who offer the service they need. You can change this any time from your profile.</p>
+        {% set skill_min = 1 %}
+        {% include '_skill_picker.html' %}
+        <label class="field" style="max-width:260px">
+          <span style="font-size:12px;font-weight:800;display:block;margin:6px 0 4px">Years of experience <span class="optional">(optional)</span></span>
+          <input class="input" type="number" name="experience" min="0" max="60" step="1" placeholder="0" value="{{ request.form.get('experience','') }}">
+        </label>
+      </div>
+
+      <button class="primary-btn btn-block btn-lg" type="submit" id="registerButton" style="margin-top:14px">Create account →</button>
+    </form>
+    <p class="bottom-text">Already have an account? <a href="{{ url_for('login') }}">Sign in</a></p>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function togglePassword(id,btn){var i=document.getElementById(id);if(!i)return;var show=i.type==='password';i.type=show?'text':'password';btn.textContent=show?'🙈':'👁';btn.setAttribute('aria-label',show?'Hide password':'Show password');}
+function checkPassword(){var p=document.getElementById('password').value,c=document.getElementById('confirmPassword').value,s=document.getElementById('passwordStatus'),m=document.getElementById('pwMeter');var score=0;if(p.length>=6)score++;if(p.length>=10)score++;if(/[A-Z]/.test(p)&&/[a-z]/.test(p))score++;if(/\d/.test(p))score++;if(/[^A-Za-z0-9]/.test(p))score++;var pct=[0,20,40,60,80,100][score];m.style.width=pct+'%';m.style.background=score<=1?'var(--red)':score<=3?'var(--yellow)':'var(--green)';if(!p&&!c){s.textContent='';return true;}if(p.length<6){s.textContent='Use at least 6 characters.';s.style.color='var(--red)';return false;}if(c&&p!==c){s.textContent='Passwords do not match.';s.style.color='var(--red)';return false;}if(c&&p===c){s.textContent='✓ Passwords match.';s.style.color='var(--green)';}else{s.textContent=score>=4?'Strong password.':'Add numbers or symbols to strengthen it.';s.style.color='var(--muted)';}return true;}
+function setRole(role){var pf=document.getElementById('providerFields');pf.classList.toggle('show',role==='provider');document.getElementById('roleError').style.display='none';document.getElementById('registerButton').textContent=role==='provider'?'Create provider account →':'Create account →';}
+function validateRegistration(e){var form=document.getElementById('registerForm');var role=(form.querySelector('input[name=role]:checked')||{}).value;var ok=true;if(!form.name.value.trim()||form.name.value.trim().length<2){form.name.focus();ok=false;}if(ok&&!form.email.checkValidity()){form.email.reportValidity();ok=false;}if(ok&&!checkPassword()){document.getElementById('password').focus();ok=false;}if(ok&&!document.getElementById('confirmPassword').value){document.getElementById('confirmPassword').focus();document.getElementById('passwordStatus').textContent='Please confirm your password.';document.getElementById('passwordStatus').style.color='var(--red)';ok=false;}if(ok&&!role){document.getElementById('roleError').style.display='block';document.querySelector('.role-switch').scrollIntoView({behavior:'smooth',block:'center'});ok=false;}if(ok&&role==='provider'&&typeof skillPickerValidate==='function'&&!skillPickerValidate()){ok=false;}if(!ok){e.preventDefault();return false;}var btn=document.getElementById('registerButton');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Creating your account…';return true;}
+(function(){var checked=document.querySelector('input[name=role]:checked');if(checked)setRole(checked.value);})();
+</script>
+{% endblock %}

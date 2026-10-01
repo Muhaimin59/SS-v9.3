@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}SmartServe · Rate your service{% endblock %}
+{% block head %}<style>
+.review-wrap{max-width:640px;margin:0 auto}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 18px}
+.summary div{padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--card2)}
+.summary span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.summary strong{font-size:15px}
+.stars{display:flex;gap:6px;justify-content:center;margin:6px 0}
+.star-button{font-size:38px;line-height:1;background:none;border:0;cursor:pointer;color:var(--line-strong);transition:transform var(--t) var(--ease-spring),color var(--t);padding:4px}
+.star-button:hover{transform:translateY(-3px) scale(1.12)}
+.star-button.active{color:var(--yellow);text-shadow:0 6px 16px rgba(245,163,0,.35)}
+.rating-caption{text-align:center;font-weight:800;color:var(--muted);min-height:20px}
+.character-count{text-align:right;font-size:11.5px;color:var(--muted)}
+@media(max-width:560px){.summary{grid-template-columns:1fr}}
+</style>{% endblock %}
+{% block content %}
+<div class="page review-wrap">
+  <div class="greeting reveal"><div><span class="eyebrow">Completed service · #{{ service_request['id'] }}</span><h1>Rate your experience</h1><p class="muted">Your review is linked to this completed service and helps other customers choose confidently.</p></div></div>
+  <section class="form-card reveal">
+    <div class="summary"><div><span>Service</span><strong>{{ service_request['service_name'] }}</strong></div><div><span>Provider</span><strong>{{ service_request['provider_name'] }}</strong></div></div>
+    <form method="POST" id="reviewForm" class="stack">
+      <div class="field"><label>How was your experience?</label><div class="stars" id="ratingStars">{% for star in [1,2,3,4,5] %}<button type="button" class="star-button" data-rating="{{ star }}" aria-label="{{ star }} star{{ 's' if star>1 }}">★</button>{% endfor %}</div><div class="rating-caption" id="ratingCaption">Tap a star to rate</div><select name="rating" id="rating" class="sr-only" tabindex="-1" aria-hidden="true"><option value="">Select rating</option>{% for s in [1,2,3,4,5] %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="review">Tell us about the service <span class="optional">optional</span></label><textarea class="input" id="review" name="review" maxlength="1000" rows="4" placeholder="Example: Arrived on time, explained the fault clearly and fixed it in one visit."></textarea><div class="character-count" id="characterCount">0 / 1000</div></div>
+      <div class="action-row"><button type="submit" class="primary-btn" id="submitReview" data-busy-text="Submitting…">⭐ Submit review</button><a class="outline-btn" href="{{ url_for('customer_dashboard') }}">← Dashboard</a></div>
+    </form>
+    <p class="muted" style="font-size:12px;margin:12px 0 0">Reviews can only be left once per completed, paid service. Your name is shown with the review on the provider’s profile.</p>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+(function(){const captions={1:'Poor',2:'Below expectations',3:'Okay',4:'Good',5:'Excellent'};const sel=document.getElementById('rating'),cap=document.getElementById('ratingCaption'),btns=[...document.querySelectorAll('.star-button')];
+function paint(v){btns.forEach(b=>b.classList.toggle('active',Number(b.dataset.rating)<=v));cap.textContent=v?captions[v]+' · '+v+' of 5':'Tap a star to rate';}
+btns.forEach(b=>{b.addEventListener('click',()=>{sel.value=b.dataset.rating;paint(Number(b.dataset.rating));});b.addEventListener('mouseenter',()=>paint(Number(b.dataset.rating)));b.addEventListener('mouseleave',()=>paint(Number(sel.value||0)));});
+const ta=document.getElementById('review'),cc=document.getElementById('characterCount');ta.addEventListener('input',()=>cc.textContent=ta.value.length+' / 1000');
+document.getElementById('reviewForm').addEventListener('submit',e=>{if(!sel.value){e.preventDefault();showToast('Choose a star rating first.','error');}});})();
+</script>{% endblock %}
