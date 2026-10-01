@@ -1,0 +1,120 @@
+{% extends "v10/base.html" %}
+{% set case = detail['case'] %}
+{% set original = detail['original'] %}
+{% block title %}Recovery {{ case['case_code'] }} · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.recovery_page') }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">{{ case['case_code'] }}</div><span class="muted tiny">Service recovery case</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <div class="alert-strip {{ 'info' if case['warranty_status'] == 'ACTIVE' else 'warn' }} reveal">
+    <span class="ico">♻️</span>
+    <span>
+      <strong>Problem appears related to a previous service</strong>
+      <span class="muted" style="display:block">{{ case['match_reason'] }} Match confidence {{ (case['match_confidence'] * 100)|round|int }}%.</span>
+    </span>
+  </div>
+
+  <div class="card reveal d1" style="margin-top:12px">
+    <div class="v10-row between">
+      <span class="chip {{ 'green' if case['warranty_status'] == 'ACTIVE' else ('amber' if case['warranty_status'] == 'EXPIRED' else '') }}">
+        Warranty: {{ case['warranty_status']|title }}
+      </span>
+      <span class="chip">{{ case['severity']|title }} severity</span>
+    </div>
+    <h2 style="margin:12px 0 4px;font-size:17px">Current problem</h2>
+    <p class="muted small" style="margin:0">{{ case['reported_problem'] }}</p>
+    {% if case['warranty_until'] %}
+    <p class="muted tiny" style="margin-top:6px">
+      {% if case['warranty_status'] == 'ACTIVE' %}Warranty is active until {{ (case['warranty_until'] or '')[:10] }} — a revisit for the same fault may be covered.
+      {% else %}The warranty ended on {{ (case['warranty_until'] or '')[:10] }}, so a revisit may be chargeable.{% endif %}
+    </p>
+    {% else %}
+    <p class="muted tiny" style="margin-top:6px">No warranty was recorded for the original service.</p>
+    {% endif %}
+  </div>
+
+  {% if original %}
+  <div class="card reveal d2" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">Original service</h3>
+    <div class="cert-line"><span>Service</span><span>{{ original['service_name'] }}</span></div>
+    <div class="cert-line"><span>Provider</span><span>{{ original['provider_name'] or 'Not assigned' }}</span></div>
+    <div class="cert-line"><span>Completed</span><span>{{ (original['completed_at'] or original['created_at'] or '')[:16] }}</span></div>
+    <div class="cert-line"><span>Original problem</span><span>{{ original['description'][:120] }}</span></div>
+    <div class="cert-line"><span>Provider diagnosis</span><span>{{ original['provider_diagnosis'] or 'Not recorded' }}</span></div>
+    <div class="cert-line"><span>Work performed</span><span>{{ original['provider_work_performed'] or 'Not recorded' }}</span></div>
+    <div class="cert-line"><span>Amount paid</span><span>₹{{ '%.0f'|format(original['final_amount'] or original['agreed_amount'] or 0) }}</span></div>
+    {% if case['asset_type'] %}
+    <div class="cert-line"><span>Asset</span><span>{{ case['asset_type'] }} {{ case['brand'] or '' }} {{ case['model'] or '' }}</span></div>
+    {% endif %}
+    <div class="btn-row" style="margin-top:10px">
+      <a class="btn ghost sm" href="{{ url_for('v10.blackbox_page', request_id=case['original_request_id']) }}">📦 Original black box</a>
+      <a class="btn ghost sm" href="{{ url_for('v10.booking_detail', request_id=case['original_request_id']) }}">Booking</a>
+      {% if case['asset_id'] %}<a class="btn ghost sm" href="{{ url_for('v10.passport_page', asset_id=case['asset_id']) }}">🧾 Passport</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if detail['parts'] %}
+  <div class="card reveal d2" style="margin-top:12px">
+    <h3 style="margin:0 0 6px">Parts used originally</h3>
+    {% for part in detail['parts'] %}
+    <div class="part-row">
+      <div class="p-top"><span class="p-name">{{ part['part_name'] }}</span>
+        <span class="chip {{ 'amber' if part['data_source'] == 'ESTIMATE' else 'teal' }}">{{ part['data_source']|lower }}</span></div>
+      <div class="p-meta">×{{ part['quantity'] }}{% if part['warranty_days'] %} · {{ part['warranty_days'] }}-day part warranty{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card reveal d3" style="margin-top:12px">
+    <h3 style="margin:0 0 6px">Evidence from the original service</h3>
+    <div class="v10-row wrap" style="gap:8px">
+      {% for item in detail['evidence'] if item['kind'] == 'PHOTO' %}
+      {% set url = media_url(item['path']) %}
+      {% if url %}<img class="evidence-thumb" src="{{ url }}" alt="Recovery evidence" loading="lazy">{% endif %}
+      {% endfor %}
+    </div>
+    {% if not detail['evidence'] %}<p class="muted small" style="margin:0">No additional evidence uploaded yet.</p>{% endif %}
+  </div>
+
+  <div class="card reveal d3" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">Recovery options</h3>
+    <div class="v10-stack-sm">
+      {% for option in detail['options'] %}
+      <button class="btn {{ 'primary' if option['key'] == 'CONTACT_PROVIDER' else 'ghost' }}"
+              style="justify-content:flex-start;text-align:left;display:block"
+              type="button" onclick="v10RecoveryAction('{{ option['key'] }}', this)">
+        <strong style="display:block">{{ option['label'] }}</strong>
+        <span class="muted tiny" style="font-weight:600">{{ option['description'] }}</span>
+      </button>
+      {% endfor %}
+      <button class="btn ghost" type="button" style="justify-content:flex-start" onclick="v10RecoveryAction('CLOSE', this)">
+        <strong style="display:block">Close this case</strong>
+        <span class="muted tiny" style="font-weight:600">The problem is resolved or you no longer need follow-up.</span>
+      </button>
+    </div>
+    <p class="muted tiny" style="margin-top:10px">SmartServe does not accuse any professional. If a case needs an operational decision, the operations team reviews the full evidence record.</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function v10RecoveryAction(action, button) {
+  if (action === 'CLOSE' && !confirm('Close this recovery case?')) return;
+  var restore = v10Loading(button, 'Working…');
+  try {
+    var data = await v10Api('/api/recovery/{{ case['id'] }}/action', { method: 'POST', body: { action: action } });
+    if (data.redirect) {
+      v10Toast(data.message || 'Opening…', 'success');
+      setTimeout(function () { location.href = data.redirect; }, 800);
+      return;
+    }
+    v10Toast(data.message || 'Case updated.', 'success');
+    setTimeout(function () { location.reload(); }, 700);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+}
+</script>
+{% endblock %}

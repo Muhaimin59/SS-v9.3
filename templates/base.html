@@ -93,19 +93,20 @@
   {% if session.get('user_id') %}
   <nav class="bottom-nav" aria-label="Mobile">
     {% if role == 'customer' %}
-      <a href="{{ url_for('customer_dashboard') }}" class="{{ 'active' if ep=='customer_dashboard' }}"><span>⌂</span><small>Home</small></a>
-      <a href="{{ url_for('request_service') }}" class="{{ 'active' if ep=='request_service' }}"><span>＋</span><small>Book</small></a>
-      <a href="{{ url_for('customer_dashboard') }}#bookings"><span>▤</span><small>Bookings</small></a>
-      <a href="{{ url_for('marketplace_features') }}" class="{{ 'active' if ep=='marketplace_features' }}"><span>🛡</span><small>Safety</small></a>
-      <a href="#" onclick="toggleUserMenu(event);return false;"><span>♙</span><small>Account</small></a>
+      <a href="{{ url_for('v10.customer_home') }}" class="{{ 'active' if ep in ['customer_home','home'] }}"><span>⌂</span><small>Home</small></a>
+      <a href="{{ url_for('v10.bookings_page') }}" class="{{ 'active' if ep=='bookings_page' }}"><span>▤</span><small>Bookings</small></a>
+      <a href="{{ url_for('v10.missions_page') }}" class="{{ 'active' if ep=='missions_page' }}"><span>🧭</span><small>Missions</small></a>
+      <a href="{{ url_for('v10.messages_page') }}" class="{{ 'active' if ep=='messages_page' }}"><span>💬</span><small>Messages</small></a>
+      <a href="{{ url_for('v10.profile_page') }}" class="{{ 'active' if ep=='profile_page' }}"><span>♙</span><small>Profile</small></a>
     {% elif role == 'provider' %}
-      <a href="{{ url_for('provider_dashboard') }}" class="{{ 'active' if ep=='provider_dashboard' }}"><span>⌂</span><small>Requests</small></a>
+      <a href="{{ url_for('v10.provider_home') }}" class="{{ 'active' if ep=='provider_home' }}"><span>⌂</span><small>Home</small></a>
+      <a href="{{ url_for('v10.provider_home') }}#requests"><span>🔔</span><small>Requests</small></a>
+      <a href="{{ url_for('v10.provider_home') }}#active"><span>🧰</span><small>Active jobs</small></a>
+      <a href="{{ url_for('v10.messages_page') }}" class="{{ 'active' if ep=='messages_page' }}"><span>💬</span><small>Messages</small></a>
       <a href="{{ url_for('provider_profile_edit') }}" class="{{ 'active' if ep=='provider_profile_edit' }}"><span>♙</span><small>Profile</small></a>
-      <a href="{{ url_for('provider_earnings') }}" class="{{ 'active' if ep=='provider_earnings' }}"><span>₹</span><small>Earnings</small></a>
-      <a href="{{ url_for('marketplace_features') }}" class="{{ 'active' if ep=='marketplace_features' }}"><span>▦</span><small>Hub</small></a>
-      <a href="{{ url_for('logout') }}"><span>↩</span><small>Sign out</small></a>
     {% else %}
       <a href="{{ url_for('admin_operations') }}" class="active"><span>🛰</span><small>Ops</small></a>
+      <a href="{{ url_for('v10.admin_v10') }}" class="{{ 'active' if ep=='admin_v10' }}"><span>🧭</span><small>V10</small></a>
       <a href="{{ url_for('logout') }}"><span>↩</span><small>Sign out</small></a>
     {% endif %}
   </nav>

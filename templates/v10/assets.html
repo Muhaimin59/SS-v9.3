@@ -1,0 +1,89 @@
+{% extends "v10/base.html" %}
+{% block title %}Service Passports · SmartServe{% endblock %}
+{% block content %}
+<div class="v10-frame">
+  <h1 class="reveal">Service Passports</h1>
+  <p class="muted reveal">A permanent digital identity for every appliance, fitting and vehicle you own.</p>
+
+  <div class="v10-row" style="margin:12px 0">
+    <button class="btn primary" type="button" onclick="v10Sheet('addAssetSheet')">＋ Register an asset</button>
+    <a class="btn ghost" href="{{ url_for('v10.search_page') }}">🔍 Find a service</a>
+  </div>
+
+  {% if assets %}
+  <div class="v10-stack">
+    {% for asset in assets %}
+    <a class="card tap reveal" href="{{ url_for('v10.passport_page', asset_id=asset['id']) }}">
+      <div class="v10-row between">
+        <span class="v10-row" style="gap:10px">
+          <span class="icon-box" style="width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-size:21px;background:var(--v10-blue-soft)">🧾</span>
+          <span><span class="card-title" style="display:block">{{ asset['nickname'] or asset['asset_type'] }}</span>
+          <span class="card-sub">{{ asset['brand'] or '' }} {{ asset['model'] or '' }}</span></span>
+        </span>
+        <span class="chip {{ 'green' if asset['warranty'].status == 'ACTIVE' else ('amber' if asset['warranty'].status in ['EXPIRING','UNKNOWN'] else 'red') }}">
+          {{ asset['warranty'].status|title }}
+        </span>
+      </div>
+      <div class="meta-grid" style="margin-top:10px">
+        <div>Asset ID <b>{{ asset['asset_uid'] }}</b></div>
+        <div>Health <b>{{ asset['health_score'] }}%</b></div>
+        {% if asset['last_service'] %}<div>Last service <b>{{ (asset['last_service']['service_date'] or '')[:10] }}</b></div>{% endif %}
+        {% if asset['upcoming'] %}<div>Next care <b>{{ (asset['upcoming']['due_date'] or '')[:10] }}</b></div>{% endif %}
+      </div>
+      {% if asset['data_source'] == 'DEMO' %}<span class="chip" style="margin-top:8px">DEMO DATA</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state reveal">
+    <div class="ico">🧾</div><strong>No passports yet</strong>
+    <p>Register your first asset to unlock QR codes, warranty tracking, parts history and automatic recovery.</p>
+    <button class="btn primary" type="button" onclick="v10Sheet('addAssetSheet')">Register an asset</button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="sheet" id="addAssetSheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div>
+  <h3>Register an asset</h3>
+  <p class="muted">SmartServe creates a unique Asset ID and a secure QR code for this asset.</p>
+  <form id="addAssetForm" class="v10-stack-sm">
+    <label class="field">Asset type
+      <select class="input" name="asset_type" required>
+        {% for asset_type, category, icon in asset_types %}<option value="{{ asset_type }}">{{ icon }} {{ asset_type }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="field">Nickname<input class="input" name="nickname" placeholder="e.g. Living room AC"></label>
+    <div class="field-grid two">
+      <label class="field">Brand<input class="input" name="brand" placeholder="LG"></label>
+      <label class="field">Model<input class="input" name="model" placeholder="PS-Q19YNZE"></label>
+      <label class="field">Serial number<input class="input" name="serial_number" placeholder="Optional"></label>
+      <label class="field">Purchase date<input class="input" type="date" name="purchase_date"></label>
+      <label class="field">Warranty start<input class="input" type="date" name="warranty_start"></label>
+      <label class="field">Warranty ends<input class="input" type="date" name="warranty_end"></label>
+    </div>
+    <label class="field">Location in home<input class="input" name="location_label" placeholder="e.g. Bedroom, Kitchen"></label>
+    <label class="field">Notes<input class="input" name="notes" placeholder="Anything a professional should know"></label>
+    <label class="field">Photo<input class="input" type="file" name="media" accept="image/*"></label>
+    <div class="btn-row">
+      <button class="btn primary" type="submit">Create Service Passport</button>
+      <button class="btn ghost" type="button" onclick="v10CloseSheet('addAssetSheet')">Cancel</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('addAssetForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = event.target.querySelector('button[type="submit"]');
+  var restore = v10Loading(button, 'Creating passport…');
+  var form = new FormData(event.target);
+  try {
+    var data = await v10Api('/api/assets', { method: 'POST', body: form });
+    v10Toast('Service Passport created — QR ready.', 'success');
+    setTimeout(function () { location.href = data.passport_url; }, 700);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+</script>
+{% endblock %}

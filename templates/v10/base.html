@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="{{ session.get('preferred_language','en') or 'en' }}" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1663f0">
+<meta name="description" content="SmartServe V10 — an intelligent service lifecycle platform: Service Passports, missions, verified evidence, second opinions, parts intelligence and automatic recovery.">
+<title>{% block title %}SmartServe{% endblock %}</title>
+<link rel="manifest" href="{{ url_for('v10.manifest') }}">
+<link rel="icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/v10.css') }}?v=10">
+{% block head %}{% endblock %}
+</head>
+{% set role = session.get('role') %}
+{% set ep = request.endpoint or '' %}
+<body class="v10" data-user-id="{{ session.get('user_id', 0) }}" data-role="{{ role or '' }}" {% block body_attrs %}{% endblock %}>
+<div class="v10-shell">
+  <header class="v10-header {% block header_class %}{% endblock %}">
+    <div class="v10-header-inner">
+      {% block header_left %}
+      <a class="v10-brand" href="{{ url_for('v10.customer_home') if role == 'customer' else (url_for('v10.provider_home') if role == 'provider' else url_for('home')) }}" aria-label="SmartServe home">
+        <span class="mark">S</span>
+        <span>Smart<span style="color:var(--v10-blue)">Serve</span><small>V10 · LIFECYCLE</small></span>
+      </a>
+      {% endblock %}
+      <div class="v10-header-actions">
+        {% block header_actions %}
+        <a class="icon-btn" href="{{ url_for('v10.search_page') }}" aria-label="Search services">🔍</a>
+        <button class="icon-btn" type="button" onclick="v10ToggleTheme()" aria-label="Toggle dark mode"><span data-theme-icon>☾</span></button>
+        <button class="avatar-btn" type="button" onclick="v10ToggleMenu(event)" aria-label="Account menu">
+          {% set photo = media_url(session.get('profile_photo_path')) %}
+          {% if photo %}<img src="{{ photo }}" alt="">{% else %}{{ session.get('user_name','U')[:1]|upper }}{% endif %}
+        </button>
+        {% endblock %}
+      </div>
+    </div>
+  </header>
+
+  {% if session.get('user_id') %}
+  <div class="v10-account-menu" id="v10AccountMenu" hidden
+       style="position:fixed;right:12px;top:66px;z-index:60;width:min(260px,calc(100vw - 24px));background:var(--v10-surface);border:1px solid var(--v10-line);border-radius:18px;box-shadow:var(--v10-shadow-lg);padding:8px">
+    <div style="padding:8px 10px 10px;border-bottom:1px solid var(--v10-line);margin-bottom:6px">
+      <strong style="display:block">{{ session.get('user_name','Account') }}</strong>
+      <span class="muted">{{ (role or 'guest')|capitalize }} account</span>
+    </div>
+    {% if role == 'customer' %}
+    <a class="menu-item" href="{{ url_for('v10.profile_page') }}">👤 Profile &amp; verification</a>
+    <a class="menu-item" href="{{ url_for('v10.passports_page') }}">🧾 Service Passports</a>
+    <a class="menu-item" href="{{ url_for('v10.messages_page') }}">💬 Messages</a>
+    <a class="menu-item" href="{{ url_for('v10.recovery_page') }}">♻️ Recovery &amp; outcomes</a>
+    <a class="menu-item" href="{{ url_for('v10.customer_home') }}">🏠 V10 home</a>
+    <a class="menu-item" href="{{ url_for('customer_dashboard') }}">🗂️ Classic dashboard</a>
+    <a class="menu-item" href="{{ url_for('marketplace_features') }}">🛡️ Safety &amp; tools</a>
+    {% elif role == 'provider' %}
+    <a class="menu-item" href="{{ url_for('v10.skill_passport_page') }}">🎓 Skill passport</a>
+    <a class="menu-item" href="{{ url_for('provider_profile_edit') }}">👤 Profile &amp; KYC</a>
+    <a class="menu-item" href="{{ url_for('v10.messages_page') }}">💬 Messages</a>
+    <a class="menu-item" href="{{ url_for('provider_earnings') }}">💰 Earnings</a>
+    <a class="menu-item" href="{{ url_for('v10.provider_home') }}">🏠 V10 provider hub</a>
+    <a class="menu-item" href="{{ url_for('provider_dashboard') }}">🗂️ Classic dashboard</a>
+    <a class="menu-item" href="{{ url_for('marketplace_features') }}">🛡️ Safety &amp; tools</a>
+    {% else %}
+    <a class="menu-item" href="{{ url_for('v10.admin_v10') }}">🛰️ V10 console</a>
+    <a class="menu-item" href="{{ url_for('admin_operations') }}">📊 Classic operations</a>
+    {% endif %}
+    <button class="menu-item" type="button" onclick="v10ToggleTheme()">🌗 Switch theme</button>
+    <a class="menu-item" href="{{ url_for('logout') }}">↩ Sign out</a>
+  </div>
+  {% endif %}
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="flash-stack" style="position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:80;display:grid;gap:8px;width:min(440px,calc(100vw - 24px))">
+      {% for message in messages %}
+      <div class="v10-toast reveal" role="status" data-auto-dismiss>
+        <span>{{ message }}</span>
+        <button type="button" aria-label="Dismiss" onclick="this.parentElement.remove()">×</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+
+  <main>{% block content %}{% endblock %}</main>
+
+  <nav class="v10-bottom-nav" aria-label="Primary">
+    <div class="nav-inner">
+      {% if role == 'customer' %}
+        <a class="v10-nav-item {{ 'active' if ep == 'v10.customer_home' }}" href="{{ url_for('v10.customer_home') }}"><span class="ico">🏠</span>Home</a>
+        <a class="v10-nav-item {{ 'active' if ep == 'v10.bookings_page' }}" href="{{ url_for('v10.bookings_page') }}"><span class="ico">📅</span>Bookings</a>
+        <a class="v10-nav-item {{ 'active' if ep in ['v10.missions_page','v10.mission_detail'] }}" href="{{ url_for('v10.missions_page') }}"><span class="ico">🧭</span>Missions</a>
+        <a class="v10-nav-item {{ 'active' if ep == 'v10.messages_page' }}" href="{{ url_for('v10.messages_page') }}"><span class="ico">💬</span>Messages</a>
+        <a class="v10-nav-item {{ 'active' if ep in ['v10.profile_page','v10.verify_center'] }}" href="{{ url_for('v10.profile_page') }}"><span class="ico">👤</span>Profile</a>
+      {% elif role == 'provider' %}
+        <a class="v10-nav-item {{ 'active' if ep == 'v10.provider_home' }}" href="{{ url_for('v10.provider_home') }}"><span class="ico">🏠</span>Home</a>
+        <a class="v10-nav-item {{ 'active' if ep in ['v10.mission_brief'] }}" href="{{ url_for('v10.provider_home') }}#requests"><span class="ico">📥</span>Requests</a>
+        <a class="v10-nav-item" href="{{ url_for('v10.provider_home') }}#jobs"><span class="ico">🛠️</span>Jobs</a>
+        <a class="v10-nav-item {{ 'active' if ep == 'v10.messages_page' }}" href="{{ url_for('v10.messages_page') }}"><span class="ico">💬</span>Messages</a>
+        <a class="v10-nav-item {{ 'active' if ep == 'v10.skill_passport_page' }}" href="{{ url_for('v10.skill_passport_page') }}"><span class="ico">🎓</span>Skills</a>
+      {% else %}
+        <a class="v10-nav-item {{ 'active' if ep == 'v10.admin_v10' }}" href="{{ url_for('v10.admin_v10') }}"><span class="ico">🛰️</span>V10</a>
+        <a class="v10-nav-item" href="{{ url_for('admin_operations') }}"><span class="ico">📊</span>Ops</a>
+        <a class="v10-nav-item" href="{{ url_for('home') }}"><span class="ico">🌐</span>Site</a>
+      {% endif %}
+    </div>
+  </nav>
+</div>
+
+{% if session.get('user_id') %}
+<div class="drawer-overlay" id="v10ChatOverlay" onclick="if(event.target===this)v10CloseChat()">
+  <aside style="width:min(460px,100vw);height:100dvh;background:var(--v10-surface);border-left:1px solid var(--v10-line);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease"
+         id="v10ChatPanel" role="dialog" aria-label="Service chat">
+    <div style="padding:15px 16px;border-bottom:1px solid var(--v10-line);display:flex;align-items:center;gap:11px">
+      <div class="provider-avatar" id="v10ChatAvatar" style="width:40px;height:40px;border-radius:13px">S</div>
+      <div style="flex:1;min-width:0">
+        <strong id="v10ChatTitle" style="display:block;font-size:14px">SmartServe chat</strong>
+        <span class="muted" id="v10ChatSub">Private service conversation</span>
+      </div>
+      <button class="icon-btn" id="v10ChatCall" type="button" style="display:none" aria-label="Call">☎</button>
+      <button class="icon-btn" type="button" onclick="v10CloseChat()" aria-label="Close chat">×</button>
+    </div>
+    <div id="v10ChatMessages" style="flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:9px;background:var(--v10-surface-2)"></div>
+    <form id="v10ChatForm" style="display:flex;gap:8px;padding:12px;border-top:1px solid var(--v10-line)">
+      <input class="input" id="v10ChatInput" autocomplete="off" placeholder="Write a message…" aria-label="Message" required>
+      <button class="btn primary" type="submit" aria-label="Send">➤</button>
+    </form>
+  </aside>
+</div>
+{% endif %}
+
+<script src="{{ url_for('static', filename='vendor/socket.io.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ui.js') }}?v=10"></script>
+<script src="{{ url_for('static', filename='js/realtime.js') }}?v=10" defer></script>
+<script src="{{ url_for('static', filename='js/v10.js') }}?v=10"></script>
+<style>
+  .menu-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:10px 11px;border-radius:11px;border:0;background:transparent;font:inherit;font-size:13px;font-weight:600;color:var(--v10-text);cursor:pointer}
+  .menu-item:hover{background:var(--v10-surface-2)}
+  .drawer-overlay.open{opacity:1;visibility:visible;pointer-events:auto}
+  .drawer-overlay.open #v10ChatPanel{transform:translateX(0)}
+  .suggestion{display:flex;gap:10px;align-items:center;padding:10px;border-radius:12px}
+  .suggestion:hover{background:var(--v10-surface-2)}
+  .suggestion .ico{font-size:17px}
+  #searchSuggestions{display:none;margin-top:8px;background:var(--v10-surface);border:1px solid var(--v10-line);border-radius:16px;padding:6px;box-shadow:var(--v10-shadow)}
+</style>
+<script>
+function v10ToggleMenu(event){
+  if(event){event.preventDefault();event.stopPropagation();}
+  var menu=document.getElementById('v10AccountMenu');
+  if(!menu)return;
+  menu.hidden=!menu.hidden;
+}
+document.addEventListener('click',function(e){
+  var menu=document.getElementById('v10AccountMenu');
+  if(menu&&!menu.hidden&&!e.target.closest('#v10AccountMenu')&&!e.target.classList.contains('avatar-btn'))menu.hidden=true;
+});
+/* ---- shared chat drawer (reuses the existing /api/chat endpoints + socket) ---- */
+var v10ChatId=null;
+window.v10OpenChat=function(id,peerName){
+  v10ChatId=Number(id);window.activeChatId=v10ChatId;
+  var overlay=document.getElementById('v10ChatOverlay');if(!overlay)return;
+  overlay.classList.add('open');
+  if(peerName){
+    var title=document.getElementById('v10ChatTitle');
+    var avatar=document.getElementById('v10ChatAvatar');
+    var sub=document.getElementById('v10ChatSub');
+    if(title)title.textContent=peerName;
+    if(avatar)avatar.textContent=String(peerName).slice(0,1).toUpperCase();
+    if(sub)sub.textContent='Service #'+v10ChatId+' · private';
+  }
+  if(window.smartSocket)window.smartSocket.emit('join_request',{request_id:v10ChatId});
+  v10LoadChat();
+};
+window.v10CloseChat=function(){
+  var overlay=document.getElementById('v10ChatOverlay');
+  if(overlay)overlay.classList.remove('open');
+  if(window.smartSocket&&v10ChatId)window.smartSocket.emit('leave_request',{request_id:v10ChatId});
+  v10ChatId=null;window.activeChatId=null;
+};
+window.appendChatMessage=function(message){
+  if(!v10ChatId||Number(message.request_id)!==Number(v10ChatId))return;
+  var box=document.getElementById('v10ChatMessages');if(!box)return;
+  var empty=box.querySelector('.empty-state');if(empty)empty.remove();
+  box.insertAdjacentHTML('beforeend',v10ChatRow(message));
+  box.scrollTop=box.scrollHeight;
+};
+function v10ChatRow(message){
+  var mine=Number(message.sender_id)===Number(document.body.dataset.userId||-1);
+  return '<div style="display:flex;'+(mine?'justify-content:flex-end':'')+'">'+
+    '<div style="max-width:82%;padding:9px 12px;border-radius:15px;font-size:13px;line-height:1.45;'+
+    (mine?'background:var(--v10-blue);color:#fff;border-bottom-right-radius:5px':'background:var(--v10-surface);border:1px solid var(--v10-line);border-bottom-left-radius:5px')+'">'+
+    '<div style="font-size:10.5px;font-weight:800;opacity:.75;margin-bottom:2px">'+(mine?'You':escapeHtml(message.sender_name||'User'))+'</div>'+
+    escapeHtml(message.message||'')+
+    '<div style="font-size:10px;opacity:.6;margin-top:4px">'+escapeHtml(message.created_at||'')+'</div></div></div>';
+}
+window.v10LoadChat=async function(){
+  if(!v10ChatId)return;
+  var box=document.getElementById('v10ChatMessages');
+  try{
+    var data=await v10Api('/api/chat/'+v10ChatId);
+    document.getElementById('v10ChatTitle').textContent=data.other_party_name||'Service chat';
+    document.getElementById('v10ChatAvatar').textContent=(data.other_party_name||'S').slice(0,1).toUpperCase();
+    document.getElementById('v10ChatSub').textContent=data.request_id?('Service #'+data.request_id+' · private'):'Private service conversation';
+    var call=document.getElementById('v10ChatCall');
+    if(data.other_party_phone){call.style.display='grid';call.onclick=function(){location.href='tel:'+data.other_party_phone;};}else{call.style.display='none';}
+    box.innerHTML=(data.messages&&data.messages.length)?data.messages.map(v10ChatRow).join('')
+      :'<div class="empty-state"><div class="ico">💬</div><strong>Start the conversation</strong><p>Share arrival details, ask about the asset or send extra photos.</p></div>';
+    box.scrollTop=box.scrollHeight;
+  }catch(error){
+    box.innerHTML='<div class="empty-state"><strong>Chat unavailable</strong><p>'+escapeHtml(error.message)+'</p></div>';
+  }
+};
+document.addEventListener('submit',async function(e){
+  if(e.target.id!=='v10ChatForm')return;
+  e.preventDefault();
+  var input=document.getElementById('v10ChatInput');
+  var text=input.value.trim();
+  if(!text||!v10ChatId)return;
+  input.value='';input.disabled=true;
+  try{await v10Api('/api/chat/'+v10ChatId,{method:'POST',body:{message:text}});v10LoadChat();}
+  catch(error){v10Toast(error.message,'error');}
+  finally{input.disabled=false;input.focus();}
+});
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

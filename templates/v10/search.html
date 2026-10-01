@@ -1,0 +1,93 @@
+{% extends "v10/base.html" %}
+{% block title %}{% if query %}{{ query }}{% else %}Search{% endif %} · SmartServe{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <form class="v10-search" method="get" action="{{ url_for('v10.search_page') }}" role="search">
+    <span class="s-ico">🔍</span>
+    <input class="input" type="search" name="q" value="{{ query or '' }}" placeholder="Search services, problems, appliances…"
+           data-live-search aria-label="Search services" autocomplete="off">
+    <div class="suggest" id="searchSuggestions" hidden></div>
+  </form>
+
+  <div class="v10-row wrap" style="gap:8px;margin:10px 0">
+    {% for category in categories %}
+    <a class="chip" href="{{ url_for('v10.category_page', key=category['key']) }}">{{ category['icon'] }} {{ category['name'] }}</a>
+    {% endfor %}
+  </div>
+
+  {% if query and results %}
+    {% if results['interpretation'] and results['interpretation']['service_hint'] %}
+    <div class="alert-strip info reveal">
+      <span class="ico">🧠</span>
+      <span><strong>SmartServe reads this as: {{ results['interpretation']['service_hint'] }}</strong>
+      <span class="muted" style="display:block">Interpretation source: {{ results['interpretation']['data_source']|replace('_',' ')|title }}. Confirm on site — AI is decision support only.</span></span>
+    </div>
+    {% endif %}
+
+    {% if results['services'] %}
+    <div class="v10-section">
+      <div class="v10-section-head"><h2>🛠️ Services</h2><span class="muted tiny">{{ results['services']|length }}</span></div>
+      <div class="v10-stack-sm">
+        {% for item in results['services'] %}
+        <a class="card tap reveal" href="{{ url_for('v10.booking_page', service_ref=item['id']) }}">
+          <div class="v10-row between">
+            <div style="min-width:0">
+              <span class="card-title" style="display:block">{{ item['icon'] or '🛠️' }} {{ item['name'] }}</span>
+              <span class="card-sub">{{ item['category'] }}{% if item['subcategory'] %} · {{ item['subcategory'] }}{% endif %}</span>
+            </div>
+            <span class="chip">{{ ('₹' ~ item['min_price_hint']|int ~ '+') if item['min_price_hint'] else 'Quote' }}</span>
+          </div>
+          {% if item['description'] %}<p class="muted tiny" style="margin:8px 0 0">{{ item['description'][:130] }}</p>{% endif %}
+          <div class="v10-row wrap" style="gap:6px;margin-top:8px">
+            <span class="chip {{ 'red' if item['risk_level'] in ['HIGH','RESTRICTED'] else 'green' }}">{{ item['risk_level']|title }} risk</span>
+            {% if item['estimated_duration'] %}<span class="chip">{{ item['estimated_duration'] }}</span>{% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if results['providers'] %}
+    <div class="v10-section">
+      <div class="v10-section-head"><h2>👷 Professionals</h2></div>
+      <div class="v10-stack-sm">
+        {% for provider in results['providers'] %}
+        <a class="card tap reveal provider-card" href="{{ url_for('provider_profile', provider_id=provider['provider_id']) }}">
+          <div class="provider-avatar">{{ (provider['name'] or 'S')[:1]|upper }}</div>
+          <div style="flex:1;min-width:0">
+            <div class="card-title">{{ provider['name'] }}</div>
+            <div class="card-sub">{{ provider['skills'] or 'Service professional' }}</div>
+            <div class="v10-row" style="gap:6px;margin-top:5px"><span class="chip amber">★ {{ '%.1f'|format(provider['rating'] or 0) }}</span></div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if results['suggestions'] %}
+    <div class="card reveal">
+      <div class="v10-eyebrow">Related problems we understand</div>
+      <div class="v10-row wrap" style="gap:8px;margin-top:8px">
+        {% for suggestion in results['suggestions'] %}
+        <a class="chip blue" href="{{ url_for('v10.search_page', q=suggestion['service']) }}">{{ suggestion['service'] }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if not results['services'] and not results['providers'] %}
+    <div class="empty-state reveal">
+      <div class="ico">🤔</div><strong>No match for "{{ query }}"</strong>
+      <p>Describe the problem in your own words instead and SmartServe will identify the right service.</p>
+      <a class="btn primary" href="{{ url_for('v10.customer_home') }}">Describe my problem</a>
+    </div>
+    {% endif %}
+  {% elif query %}
+    <p class="muted small">Search returned no interpretation — try different words.</p>
+  {% else %}
+    <p class="muted small">Search by problem ("AC not cooling"), appliance or service name. SmartServe also understands natural sentences and suggests the closest services.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "v10/base.html" %}
+{% block title %}Categories · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('home') }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">Service categories</div><span class="muted tiny">{{ categories|length }} categories · skill-gated catalog</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <form class="v10-search" method="get" action="{{ url_for('v10.search_page') }}" role="search">
+    <span class="s-ico">🔍</span>
+    <input class="input" type="search" name="q" placeholder="Search services, problems, appliances…" data-live-search
+           aria-label="Search services" autocomplete="off">
+    <div class="suggest" id="searchSuggestions" hidden></div>
+  </form>
+
+  {% for category in categories %}
+  {% set services = grouped.get(category['key'], []) %}
+  <div class="v10-section reveal">
+    <div class="v10-section-head">
+      <h2>{{ category['icon'] }} {{ category['name'] }}</h2>
+      <a class="muted tiny" href="{{ url_for('v10.category_page', key=category['key']) }}">View all {{ services|length }} →</a>
+    </div>
+    {% if services %}
+    <div class="cat-grid">
+      {% for service in services[:6] %}
+      <a class="cat-tile tap" href="{{ url_for('v10.booking_page', service_ref=service['id']) }}">
+        <span class="c-ico">{{ service['icon'] or category['icon'] }}</span>
+        <span class="c-name">{{ service['name'] }}</span>
+        <span class="c-meta">
+          {% if service['risk_level'] in ['HIGH','RESTRICTED'] %}<span class="chip red">{{ service['risk_level']|title }}</span>
+          {% elif service['is_popular'] %}<span class="chip blue">Popular</span>{% endif %}
+          {% if service['min_price_hint'] %}<span class="chip">from ₹{{ service['min_price_hint']|int }}</span>{% endif %}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted small">No services published in this category yet.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="card reveal">
+    <div class="v10-eyebrow">Skill gating</div>
+    <p class="muted small" style="margin:6px 0 0">Services marked <span class="chip red">Restricted</span> are only offered to providers whose verified skills and certifications match. SmartServe never sends a high-risk job to an unqualified professional.</p>
+  </div>
+</div>
+{% endblock %}

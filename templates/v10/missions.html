@@ -1,0 +1,42 @@
+{% extends "v10/base.html" %}
+{% block title %}Missions · SmartServe{% endblock %}
+{% block content %}
+<div class="v10-frame">
+  <h1 class="reveal">Service missions</h1>
+  <p class="muted reveal">A mission is the complete problem — every required trade, in order, with dependencies.</p>
+  <nav class="tabs" style="margin:14px 0">
+    <a class="{{ 'active' if tab == 'active' }}" href="{{ url_for('v10.missions_page', tab='active') }}">Active</a>
+    <a class="{{ 'active' if tab == 'completed' }}" href="{{ url_for('v10.missions_page', tab='completed') }}">Completed</a>
+  </nav>
+
+  {% if missions %}
+  <div class="v10-stack">
+    {% for mission in missions %}
+    <a class="card tap reveal" href="{{ url_for('v10.mission_detail', mission_id=mission['id']) }}">
+      <div class="v10-row between">
+        <span class="chip blue">{{ mission['mission_code'] }}</span>
+        <span class="chip {{ 'green' if mission['status'] == 'COMPLETED' else 'amber' }}">{{ mission['status']|replace('_',' ')|title }}</span>
+      </div>
+      <div class="card-title" style="margin-top:9px">{{ mission['title'] }}</div>
+      <div class="card-sub">{{ mission['problem'][:110] }}{% if mission['problem']|length > 110 %}…{% endif %}</div>
+      <div class="v10-row wrap" style="gap:6px;margin-top:8px">
+        {% if mission['asset_type'] %}<span class="chip">🧾 {{ mission['asset_type'] }}</span>{% endif %}
+        <span class="chip">{{ mission['tasks_done'] }}/{{ mission['task_count'] }} tasks</span>
+        {% if mission['risk_level'] in ['HIGH','RESTRICTED'] %}<span class="chip red">{{ mission['risk_level']|title }} risk</span>{% endif %}
+        {% if mission['data_source'] in ['RULE_BASED','DEMO'] %}<span class="chip">offline plan</span>{% endif %}
+      </div>
+      <div class="progress-track" style="margin-top:10px">
+        <div class="progress-fill {{ 'green' if mission['status'] == 'COMPLETED' }}" style="width:{{ ((mission['tasks_done'] / mission['task_count'] * 100) if mission['task_count'] else 0)|round|int }}%"></div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state reveal">
+    <div class="ico">🧭</div><strong>No missions yet</strong>
+    <p>Describe a problem and SmartServe splits it into the tasks required to fix it completely.</p>
+    <a class="btn primary" href="{{ url_for('v10.categories_page') }}">Start a booking</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

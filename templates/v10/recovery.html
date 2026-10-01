@@ -1,0 +1,133 @@
+{% extends "v10/base.html" %}
+{% block title %}Recovery &amp; outcomes · SmartServe{% endblock %}
+{% block content %}
+<div class="v10-frame">
+  <h1 class="reveal">Recovery &amp; outcomes</h1>
+  <p class="muted reveal">SmartServe does not close a service just because the provider pressed "completed". It keeps watching the outcome.</p>
+
+  {% if cases %}
+  <div class="v10-section">
+    <div class="v10-section-head"><h2>♻️ Recovery cases</h2></div>
+    <div class="v10-stack-sm">
+      {% for case in cases %}
+      <a class="card tap reveal" href="{{ url_for('v10.recovery_case_page', case_id=case['id']) }}">
+        <div class="v10-row between">
+          <span class="chip purple">{{ case['case_code'] }}</span>
+          <span class="chip {{ 'green' if case['warranty_status'] == 'ACTIVE' else ('amber' if case['warranty_status'] == 'EXPIRED' else '') }}">
+            Warranty {{ case['warranty_status']|title }}
+          </span>
+        </div>
+        <div class="card-title" style="margin-top:9px">{{ case['reported_problem'][:90] }}</div>
+        <div class="card-sub">{{ case['service_name'] or 'Service' }}{% if case['asset_type'] %} · {{ case['asset_type'] }}{% endif %} · {{ (case['created_at'] or '')[:10] }}</div>
+        <div class="v10-row wrap" style="gap:6px;margin-top:8px">
+          <span class="chip">{{ case['recurrence_category']|replace('_',' ')|title }}</span>
+          <span class="chip">{{ (case['match_confidence'] * 100)|round|int }}% match</span>
+          <span class="chip {{ 'green' if case['status'] == 'RESOLVED' else 'amber' }}">{{ case['status']|title }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="v10-section">
+    <div class="v10-section-head"><h2>🛠️ Report a returning problem</h2></div>
+    {% if candidates %}
+    <div class="v10-stack-sm">
+      {% for item in candidates %}
+      <div class="card reveal">
+        <div class="v10-row between">
+          <div>
+            <div class="card-title">{{ item['service_name'] }}</div>
+            <div class="card-sub">{{ item['provider_name'] or 'No provider on record' }} · completed {{ (item['completed_at'] or '')[:10] }}</div>
+          </div>
+          <span class="chip {{ 'green' if item['warranty_status'] == 'ACTIVE' else ('amber' if item['warranty_status'] == 'EXPIRED' else '') }}">
+            {{ item['warranty_status']|title }}
+          </span>
+        </div>
+        {% if item['asset_type'] %}<div class="tiny muted" style="margin-top:6px">Asset: {{ item['asset_type'] }} {{ item['brand'] or '' }} {{ item['model'] or '' }}</div>{% endif %}
+        {% if item['open_case_id'] %}
+        <a class="btn ghost sm" style="margin-top:8px" href="{{ url_for('v10.recovery_case_page', case_id=item['open_case_id']) }}">Open existing case</a>
+        {% else %}
+        <button class="btn danger sm" style="margin-top:8px" type="button"
+                onclick="v10OpenRecovery({{ item['id'] }}, '{{ item['service_name']|e }}')">Same problem returned?</button>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state reveal">
+      <div class="ico">✅</div><strong>No completed services yet</strong>
+      <p>Once a service is completed and paid, SmartServe monitors it for 90 days and you can report a recurrence here.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if outcomes %}
+  <div class="v10-section">
+    <div class="v10-section-head"><h2>📈 Outcome monitoring</h2></div>
+    <div class="v10-stack-sm">
+      {% for outcome in outcomes %}
+      <div class="card reveal v10-row between">
+        <div>
+          <strong class="small">{{ outcome['service_name'] or 'Service' }}</strong>
+          <span class="muted tiny" style="display:block">Monitored until {{ (outcome['monitored_until'] or '')[:10] }}{% if outcome['asset_type'] %} · {{ outcome['asset_type'] }}{% endif %}</span>
+        </div>
+        <span class="chip {{ 'green' if outcome['outcome_status'] == 'MONITORING' else 'amber' }}">{{ outcome['outcome_status']|replace('_',' ')|title }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="sheet" id="recoverySheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div>
+  <h3>Report a returning problem</h3>
+  <p class="muted" id="recoveryHint">SmartServe retrieves the original diagnosis, parts, evidence and warranty automatically.</p>
+  <form id="recoveryForm" class="v10-stack-sm">
+    <input type="hidden" name="request_id" id="recoveryRequestId">
+    <label class="field">What is happening now?
+      <textarea class="input" name="problem" required data-required data-required-message="Describe the problem." placeholder="Example: The same cooling problem is back."></textarea>
+    </label>
+    <label class="field">Severity
+      <select class="input" name="severity">
+        <option value="LOW">Mild — can wait</option>
+        <option value="MEDIUM" selected>Moderate</option>
+        <option value="HIGH">Severe / safety concern</option>
+      </select>
+    </label>
+    <label class="field">Photos (optional)<input class="input" type="file" name="media" accept="image/*" multiple></label>
+    <div class="btn-row">
+      <button class="btn danger" type="submit">Open recovery case</button>
+      <button class="btn ghost" type="button" onclick="v10CloseSheet('recoverySheet')">Cancel</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function v10OpenRecovery(requestId, serviceName) {
+  document.getElementById('recoveryRequestId').value = requestId;
+  document.getElementById('recoveryHint').textContent = 'Retrieving the record for ' + serviceName + '…';
+  v10Sheet('recoverySheet');
+}
+document.getElementById('recoveryForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = event.target.querySelector('button[type="submit"]');
+  var restore = v10Loading(button, 'Opening case…');
+  var data = new FormData(event.target);
+  var body = new FormData();
+  body.append('problem', data.get('problem'));
+  body.append('severity', data.get('severity'));
+  Array.prototype.slice.call(event.target.querySelector('input[type=file]').files).slice(0, 4).forEach(function (file) {
+    body.append('media', file);
+  });
+  try {
+    var result = await v10Api('/api/service/' + data.get('request_id') + '/recovery', { method: 'POST', body: body });
+    v10Toast('Recovery case ' + result.case_code + ' opened.', 'success');
+    setTimeout(function () { location.href = result.redirect; }, 700);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+</script>
+{% endblock %}

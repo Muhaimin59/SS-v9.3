@@ -1,0 +1,36 @@
+{% extends "v10/base.html" %}
+{% block title %}Messages · SmartServe{% endblock %}
+{% block content %}
+<div class="v10-frame">
+  <h1 class="reveal">Messages</h1>
+  <p class="muted reveal">Chat opens automatically for accepted jobs — no phone numbers needed.</p>
+
+  {% if conversations %}
+  <div class="v10-stack-sm" style="margin-top:12px">
+    {% for conversation in conversations %}
+    <div class="chat-row tap reveal" onclick="v10OpenChat('{{ conversation['request_id'] }}', '{{ (conversation['peer_name'] or 'SmartServe')|e }}')">
+      <div class="provider-avatar" style="width:46px;height:46px;border-radius:14px">
+        {% set photo = media_url(conversation['peer_photo']) %}
+        {% if photo %}<img src="{{ photo }}" alt="">{% else %}{{ (conversation['peer_name'] or 'S')[:1]|upper }}{% endif %}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="v10-row between">
+          <strong class="small">{{ conversation['peer_name'] or 'Service partner' }}</strong>
+          <span class="muted tiny">{{ (conversation['last_at'] or '')[:16] }}</span>
+        </div>
+        <div class="muted tiny">{{ conversation['service_name'] }}{% if conversation['mission_code'] %} · {{ conversation['mission_code'] }}{% endif %}</div>
+        <div class="muted small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ conversation['last_message'] or 'No messages yet' }}</div>
+      </div>
+      <span class="chip {{ 'amber' if conversation['status'] in ['SEARCHING','PENDING','OFFERED'] else 'green' }}">{{ conversation['status']|replace('_',' ')|title }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state reveal">
+    <div class="ico">💬</div><strong>No conversations yet</strong>
+    <p>Book a service or accept a job and a private chat thread opens between you and your counterpart.</p>
+    <a class="btn primary" href="{{ url_for('v10.customer_home') if session.get('role') == 'customer' else url_for('v10.provider_home') }}">Go to home</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

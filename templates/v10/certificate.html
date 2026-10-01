@@ -1,0 +1,87 @@
+{% extends "v10/base.html" %}
+{% block title %}Service Certificate · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.booking_detail', request_id=r['id']) }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">Service Certificate</div><span class="muted tiny">Booking #{{ r['id'] }}</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+{% if certificate %}
+  <div class="certificate-sheet reveal">
+    <div class="v10-row between">
+      <div>
+        <div class="v10-eyebrow">SmartServe Service Certificate</div>
+        <div class="cert-code" style="margin-top:4px">{{ certificate['certificate_code'] }}</div>
+      </div>
+      <span class="chip {{ 'green' if certificate['customer_confirmed'] else 'amber' }}">
+        {{ 'Customer verified ✓' if certificate['customer_confirmed'] else 'Verification pending' }}
+      </span>
+    </div>
+
+    <div style="margin-top:16px">
+      <div class="cert-line"><span>Service</span><span>{{ certificate['service_name'] }}</span></div>
+      {% if r['asset_uid'] %}<div class="cert-line"><span>Asset</span><span>{{ r['asset_type'] }} · {{ r['brand'] or '' }} {{ r['model'] or '' }}</span></div>
+      <div class="cert-line"><span>Asset ID</span><span class="cert-code">{{ r['asset_uid'] }}</span></div>{% endif %}
+      <div class="cert-line"><span>Customer</span><span>{{ r['customer_name'] }}</span></div>
+      <div class="cert-line"><span>Provider</span><span>{{ r['provider_name'] or 'Not assigned' }}</span></div>
+      <div class="cert-line"><span>Completed</span><span>{{ (certificate['issued_at'] or '')[:16] }}</span></div>
+    </div>
+
+    <h3 style="margin:18px 0 6px">Problem &amp; diagnosis</h3>
+    <p class="muted small" style="margin:0 0 8px"><strong>Reported problem:</strong> {{ certificate['problem'] or '—' }}</p>
+    {% if certificate['ai_assessment'] %}<p class="muted small" style="margin:0 0 8px"><strong>AI assessment:</strong> {{ certificate['ai_assessment'] }}
+      <span class="tiny">(preliminary — see the black box for the data source)</span></p>{% endif %}
+    <p class="muted small" style="margin:0"><strong>Provider diagnosis:</strong> {{ certificate['provider_diagnosis'] or 'Not recorded' }}</p>
+    <p class="muted small" style="margin:8px 0 0"><strong>Work performed:</strong> {{ certificate['work_performed'] or 'Not recorded' }}</p>
+
+    <h3 style="margin:18px 0 6px">Parts</h3>
+    {% if parts %}
+      {% for part in parts %}
+      <div class="part-row">
+        <div class="p-top"><span class="p-name">{{ part['part_name'] }}</span>
+          <span class="chip {{ 'amber' if part['data_source'] == 'ESTIMATE' else 'teal' }}">{{ part['data_source']|lower }}</span></div>
+        <div class="p-meta">×{{ part['quantity'] }} · {{ part['supply_mode']|title }} supplied
+          {% if part['unit_price_min'] %} · ₹{{ part['unit_price_min']|int }}{% if part['unit_price_max'] %}–₹{{ part['unit_price_max']|int }}{% endif %}{% endif %}
+          {% if part['warranty_days'] %} · {{ part['warranty_days'] }}-day part warranty{% endif %}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted small" style="margin:0">No parts recorded for this service.</p>
+    {% endif %}
+
+    <h3 style="margin:18px 0 6px">Amounts</h3>
+    <div class="cert-line"><span>Original estimate</span><span>{{ ('₹%.0f'|format(certificate['original_estimate'])) if certificate['original_estimate'] else 'Not recorded' }}</span></div>
+    <div class="cert-line"><span>Customer budget</span><span>{{ ('₹%.0f'|format(certificate['customer_budget'])) if certificate['customer_budget'] else 'Open' }}</span></div>
+    <div class="cert-line"><span>Negotiated price</span><span>{{ ('₹%.0f'|format(certificate['negotiated_amount'])) if certificate['negotiated_amount'] else '—' }}</span></div>
+    <div class="cert-line"><span>Parts cost</span><span>₹{{ '%.0f'|format(certificate['parts_cost'] or 0) }}</span></div>
+    <div class="cert-line"><span>SmartServe service fee</span><span>₹{{ '%.0f'|format(certificate['service_fee'] or 0) }}</span></div>
+    <div class="cert-line" style="border-bottom:0"><span><strong>Final amount paid</strong></span><span><strong>₹{{ '%.0f'|format(certificate['final_amount'] or 0) }}</strong></span></div>
+    <p class="muted tiny">The final amount was approved by the customer before payment. SmartServe never changes an approved price silently.</p>
+
+    <h3 style="margin:18px 0 6px">Verification</h3>
+    <div class="v10-row wrap" style="gap:6px">
+      <span class="chip {{ 'green' if certificate['before_verified'] else 'amber' }}">{{ 'Before evidence ✓' if certificate['before_verified'] else 'Before evidence —' }}</span>
+      <span class="chip {{ 'green' if certificate['after_verified'] else 'amber' }}">{{ 'After evidence ✓' if certificate['after_verified'] else 'After evidence —' }}</span>
+      <span class="chip {{ 'green' if certificate['customer_confirmed'] else 'amber' }}">{{ 'Customer confirmation ✓' if certificate['customer_confirmed'] else 'Customer confirmation —' }}</span>
+      <span class="chip">{{ certificate['evidence_count'] }} evidence item(s)</span>
+    </div>
+    <div class="cert-line" style="margin-top:10px"><span>Warranty</span><span>{{ certificate['warranty_days'] }} days (until {{ (certificate['warranty_until'] or '')[:10] or '—' }})</span></div>
+    <div class="cert-line"><span>Data source</span><span>{{ certificate['data_source']|title }}</span></div>
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn primary sm" type="button" onclick="window.print()">🖨️ Print / save PDF</button>
+      <a class="btn ghost sm" href="{{ url_for('v10.blackbox_page', request_id=r['id']) }}">📦 Full black box</a>
+      {% if r['asset_id'] %}<a class="btn ghost sm" href="{{ url_for('v10.passport_page', asset_id=r['asset_id']) }}">🧾 Passport</a>{% endif %}
+    </div>
+    <p class="muted tiny" style="margin-top:12px">This certificate is generated automatically from the Service Black Box. It is decision support and service evidence — not a legal warranty document.</p>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <div class="ico">📜</div>
+    <strong>No certificate yet</strong>
+    <p>Certificates are issued after the service is completed, verified by the customer and paid.</p>
+    <a class="btn primary" href="{{ url_for('v10.booking_detail', request_id=r['id']) }}">Back to booking</a>
+  </div>
+{% endif %}
+</div>
+{% endblock %}

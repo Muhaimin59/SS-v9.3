@@ -1,0 +1,117 @@
+{% extends "v10/base.html" %}
+{% block title %}{{ mission['mission_code'] }} · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.missions_page') }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">{{ mission['mission_code'] }}</div><span class="muted tiny">Service mission</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <div class="card reveal">
+    <div class="v10-row between">
+      <span class="chip {{ 'green' if mission['status'] == 'COMPLETED' else 'blue' }}">{{ mission['status']|replace('_',' ')|title }}</span>
+      <span class="chip {{ 'red' if mission['risk_level'] in ['HIGH','RESTRICTED'] else 'amber' }}">{{ mission['risk_level']|title }} risk</span>
+    </div>
+    <h1 style="margin:10px 0 4px;font-size:20px">{{ mission['title'] }}</h1>
+    <p class="muted" style="margin:0">{{ mission['problem'] }}</p>
+    {% if mission['description'] %}<p class="muted small" style="margin-top:8px"><strong>Description:</strong> {{ mission['description'] }}</p>{% endif %}
+    {% if media_items %}
+    <div class="v10-row wrap" style="gap:8px;margin-top:10px">
+      {% for item in media_items %}{% if item['url'] %}<img class="evidence-thumb" src="{{ item['url'] }}" alt="Problem evidence" loading="lazy">{% endif %}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card reveal d1" style="margin-top:12px">
+    <div class="v10-row between"><h3 style="margin:0">Progress</h3><span class="chip blue">{{ progress['percent'] }}%</span></div>
+    <div class="progress-track" style="margin:8px 0 12px"><div class="progress-fill {{ 'green' if progress['percent'] == 100 }}" style="width:{{ progress['percent'] }}%"></div></div>
+    <div class="task-list">
+      {% for task in tasks %}
+      <div class="task-item {{ task['status']|lower }}">
+        <span class="marker">{{ '✓' if task['status'] == 'COMPLETED' else ('●' if task['status'] == 'IN_PROGRESS' else ('⏳' if task['status'] == 'BLOCKED' else '○')) }}</span>
+        <div class="t-main">
+          <div class="t-title">{{ task['task_order'] }}. {{ task['title'] }}</div>
+          <div class="muted tiny">{{ task['description'] or '' }}</div>
+          <div class="v10-row wrap" style="gap:6px;margin-top:6px">
+            <span class="chip">{{ task['service_name'] or 'Service' }}</span>
+            <span class="chip {{ 'green' if task['status'] == 'COMPLETED' else ('blue' if task['status'] in ['IN_PROGRESS','ASSIGNED'] else '') }}">{{ task['status']|replace('_',' ')|title }}</span>
+            {% if task['provider_name'] %}<span class="chip teal">{{ task['provider_name'] }}</span>{% endif %}
+            {% if task['actual_cost'] %}<span class="chip amber">₹{{ '%.0f'|format(task['actual_cost']) }}</span>{% endif %}
+          </div>
+        </div>
+        <div style="display:grid;gap:6px">
+          {% if task['request_id'] %}
+          <a class="btn ghost xs" href="{{ url_for('v10.booking_detail', request_id=task['request_id']) }}">Booking</a>
+          {% elif task['status'] != 'BLOCKED' and mission['status'] != 'COMPLETED' %}
+          <button class="btn primary xs" type="button" onclick="v10BookTask({{ mission['id'] }}, {{ task['id'] }}, this)">Book</button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if safety %}
+  <div class="alert-strip danger reveal d2" style="margin-top:12px">
+    <span class="ico">⚠️</span>
+    <span><strong>Safety notes</strong><span class="muted" style="display:block">{{ safety|join(' ') }}</span></span>
+  </div>
+  {% endif %}
+
+  <div class="card reveal d2" style="margin-top:12px">
+    <div class="v10-eyebrow">{{ 'Gemini analysis' if mission['data_source'] == 'AI' else 'Preliminary assessment (offline rules)' }}</div>
+    {% if analysis.problem %}<p class="muted small" style="margin:8px 0 6px"><strong>Understood as:</strong> {{ analysis.problem }}</p>{% endif %}
+    {% if analysis.possible_causes %}
+    <strong class="small">Possible causes</strong>
+    <ul class="muted small" style="margin:4px 0 8px;padding-left:18px">{% for cause in analysis.possible_causes %}<li>{{ cause }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if analysis.recommended_next_step %}<p class="muted tiny"><strong>Next step:</strong> {{ analysis.recommended_next_step }}</p>{% endif %}
+    <p class="muted tiny">Confidence {{ ((analysis.confidence or 0) * 100)|round|int }}% · {{ analysis.disclaimer or 'SmartServe assessments are preliminary and must be confirmed on site.' }}</p>
+  </div>
+
+  {% if asset %}
+  <a class="card tap reveal d3" style="margin-top:12px" href="{{ url_for('v10.passport_page', asset_id=asset['id']) }}">
+    <div class="v10-eyebrow">Service Passport</div>
+    <div class="card-title" style="margin-top:6px">{{ asset['asset_type'] }} · {{ asset['brand'] or '' }} {{ asset['model'] or '' }}</div>
+    <div class="card-sub">{{ asset['asset_uid'] }} · health {{ asset['health_score'] }}%</div>
+  </a>
+  {% endif %}
+
+  {% if recovery_cases %}
+  <div class="card reveal d3" style="margin-top:12px">
+    <div class="v10-eyebrow">Recovery</div>
+    {% for case in recovery_cases %}
+    <a class="v10-row between" style="padding:8px 0" href="{{ url_for('v10.recovery_case_page', case_id=case['id']) }}">
+      <span><strong class="small">{{ case['case_code'] }}</strong><span class="muted tiny" style="display:block">{{ case['reported_problem'][:60] }}</span></span>
+      <span class="chip {{ 'green' if case['warranty_status'] == 'ACTIVE' else 'amber' }}">{{ case['warranty_status']|title }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card reveal d4" style="margin-top:12px">
+    <div class="v10-eyebrow">Mission timeline</div>
+    <div class="timeline" style="margin-top:12px">
+      {% for item in evidence %}
+      <div class="timeline-item">
+        <div class="t-head"><span class="t-title">{{ item['stage']|replace('_',' ')|title }}</span><span class="t-time">{{ (item['created_at'] or '')[:16] }}</span></div>
+        <div class="t-body">{{ item['note'] }}</div>
+      </div>
+      {% else %}
+      <p class="muted small">The mission timeline fills up as work progresses.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function v10BookTask(missionId, taskId, button) {
+  var restore = v10Loading(button, 'Creating…');
+  try {
+    var data = await v10Api('/api/missions/' + missionId + '/tasks/' + taskId + '/book', { method: 'POST', body: {} });
+    v10Toast('Task booking created — choose a provider.', 'success');
+    setTimeout(function () { location.href = data.redirect; }, 600);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+}
+</script>
+{% endblock %}

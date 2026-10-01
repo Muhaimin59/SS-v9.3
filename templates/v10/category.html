@@ -1,0 +1,49 @@
+{% extends "v10/base.html" %}
+{% block title %}{{ category['name'] }} · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.categories_page') }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">{{ category['icon'] }} {{ category['name'] }}</div>
+<span class="muted tiny">{{ services|length }} services{% if category['risk_level'] in ['HIGH','RESTRICTED'] %} · {{ category['risk_level']|title }} risk{% endif %}</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <div class="alert-strip {{ 'warn' if category['risk_level'] in ['HIGH','RESTRICTED'] else 'info' }} reveal">
+    <span class="ico">{{ '⚠️' if category['risk_level'] in ['HIGH','RESTRICTED'] else 'ℹ️' }}</span>
+    <span><strong>{{ category['name'] }}</strong>
+    <span class="muted" style="display:block">{{ category['description'] or 'Verified professionals only.' }}</span>
+    {% if category['allowed_provider_types'] and category['allowed_provider_types'] != 'any' %}
+    <span class="chip amber" style="margin-top:6px">Provider type: {{ category['allowed_provider_types']|replace(',',' + ') }}</span>{% endif %}</span>
+  </div>
+
+  {% for subcategory, items in subcategories.items() %}
+  <div class="v10-section reveal">
+    <div class="v10-section-head"><h2>{{ subcategory }}</h2><span class="muted tiny">{{ items|length }}</span></div>
+    <div class="v10-stack-sm">
+      {% for service in items %}
+      <a class="card tap" href="{{ url_for('v10.booking_page', service_ref=service['id']) }}">
+        <div class="v10-row between">
+          <div class="v10-row" style="gap:10px;min-width:0">
+            <span class="icon-box" style="width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:20px;background:var(--v10-soft)">{{ service['icon'] or category['icon'] }}</span>
+            <span style="min-width:0">
+              <span class="card-title" style="display:block">{{ service['name'] }}</span>
+              <span class="card-sub">{{ service['description'][:80] if service['description'] else '' }}</span>
+            </span>
+          </div>
+          <span class="chip">{{ ('₹' ~ service['min_price_hint']|int ~ '+') if service['min_price_hint'] else 'Quote' }}</span>
+        </div>
+        <div class="v10-row wrap" style="gap:6px;margin-top:9px">
+          {% if service['estimated_duration'] %}<span class="chip">⏱ {{ service['estimated_duration'] }}</span>{% endif %}
+          <span class="chip {{ 'red' if service['risk_level'] in ['HIGH','RESTRICTED'] else ('amber' if service['risk_level'] == 'MEDIUM' else 'green') }}">{{ service['risk_level']|title }} risk</span>
+          {% if service['required_certification'] %}<span class="chip amber">🎓 {{ service['required_certification'] }}</span>{% endif %}
+          {% if service['pricing_model'] %}<span class="chip">{{ service['pricing_model']|replace('_',' ')|title }}</span>{% endif %}
+          {% if service['is_popular'] %}<span class="chip blue">Popular</span>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="ico">🔍</div><strong>No services in this category yet</strong></div>
+  {% endfor %}
+</div>
+{% endblock %}

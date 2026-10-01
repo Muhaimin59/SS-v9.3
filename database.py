@@ -917,6 +917,18 @@ def init_database():
         cursor.execute("INSERT INTO users(name,email,password,role,auth_provider,email_verified,is_online) VALUES(?,?,?,?,?,?,?)", ("SmartServe Admin","admin@smartserve.demo",generate_password_hash("SmartServe@123"),"admin","email",1,1))
 
     # =====================================================
+    # SMARTSERVE V10 — ADDITIVE LIFECYCLE LAYER
+    # =====================================================
+    # Every V10 migration is additive (CREATE TABLE IF NOT EXISTS / ADD COLUMN
+    # when missing) and seeds the expanded catalogue idempotently. If anything in
+    # the V10 layer fails, the V9.3 application still starts and works.
+    try:
+        from v10.schema import run_v10_migrations
+        run_v10_migrations(connection, verbose=True)
+    except Exception as v10_exc:  # pragma: no cover - defensive
+        print("SMARTSERVE V10 MIGRATION WARNING:", repr(v10_exc))
+
+    # =====================================================
     # SAVE CHANGES
     # =====================================================
 

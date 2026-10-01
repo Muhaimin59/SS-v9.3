@@ -1,0 +1,126 @@
+{% extends "v10/base.html" %}
+{% block title %}Service black box #{{ r['id'] }} · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.booking_detail', request_id=r['id']) }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">Service Black Box</div><span class="muted tiny">{{ r['service_name'] }} · #{{ r['id'] }}</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <div class="card reveal">
+    <div class="v10-eyebrow">Complete evidence record</div>
+    <h1 style="font-size:19px;margin:6px 0 4px">{{ r['service_name'] }}</h1>
+    <p class="muted small" style="margin:0">{{ r['description'] }}</p>
+    <div class="v10-row wrap" style="gap:6px;margin-top:10px">
+      <span class="chip {{ 'green' if timeline.after_verified else 'amber' }}">{{ 'After evidence ✓' if timeline.after_verified else 'After evidence pending' }}</span>
+      <span class="chip {{ 'green' if timeline.before_verified else 'amber' }}">{{ 'Before evidence ✓' if timeline.before_verified else 'Before evidence pending' }}</span>
+      <span class="chip {{ 'green' if timeline.customer_confirmed else 'amber' }}">{{ 'Customer verified ✓' if timeline.customer_confirmed else 'Customer verification pending' }}</span>
+      {% if r['provider_diagnosis'] %}<span class="chip teal">Diagnosis recorded</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="card reveal d1" style="margin-top:12px">
+    <div class="v10-row between"><h3 style="margin:0">Timeline</h3><span class="chip">{{ timeline.stages|length }} stages</span></div>
+    <div class="timeline" style="margin-top:14px">
+      {% for stage in timeline.stages %}
+      <div class="timeline-item {{ 'done' if stage.kind in ['SUCCESS','SIGNATURE','PAYMENT'] else ('warn' if stage.kind == 'WARN' else '') }}">
+        <div class="t-head">
+          <span class="t-title">{{ stage.icon }} {{ stage.label }}</span>
+          <span class="t-time">{{ (stage.timestamp or '')[:16] }}</span>
+        </div>
+        <div class="t-body">
+          {% if stage.detail is mapping %}
+            {% for key, value in stage.detail.items() %}
+              {% if value %}<div><strong>{{ key|replace('_',' ')|title }}:</strong> {{ value }}</div>{% endif %}
+            {% endfor %}
+          {% elif stage.detail %}{{ stage.detail }}{% endif %}
+        </div>
+        {% if stage.actor and stage.actor not in ['system'] %}<div class="tiny muted">by {{ stage.actor }}</div>{% endif %}
+        {% if stage.path and stage.kind == 'PHOTO' %}<img class="evidence-thumb" style="margin-top:6px" src="{{ media_url(stage.path) or '' }}" alt="Service evidence" loading="lazy">{% endif %}
+        {% if stage.data_source in ['RULE_BASED','ESTIMATE','DEMO'] %}<span class="chip" style="margin-top:6px">{{ stage.data_source|lower }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if is_provider %}
+  <div class="card reveal d2" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">＋ Add evidence</h3>
+    <form id="evidenceForm" class="v10-stack-sm">
+      <label class="field">Stage
+        <select class="input" name="stage">
+          <option value="DIAGNOSIS">Diagnosis</option>
+          <option value="BEFORE">Before-service evidence</option>
+          <option value="WORK">Work performed</option>
+          <option value="AFTER">After-service evidence</option>
+        </select>
+      </label>
+      <label class="field">Note<textarea class="input" name="note" placeholder="Readings, measurements, what you found…"></textarea></label>
+      <label class="field">Diagnosis summary (optional)<input class="input" name="diagnosis" placeholder="Recorded as the provider diagnosis"></label>
+      <label class="field">Work performed (optional)<input class="input" name="work" placeholder="What was actually done"></label>
+      <label class="field">Photos<input class="input" type="file" name="media" accept="image/*" multiple></label>
+      <button class="btn primary" type="submit">Save to black box</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if is_customer %}
+  <div class="card reveal d2" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">Your notes</h3>
+    <form id="customerEvidenceForm" class="v10-stack-sm">
+      <label class="field">Add a note or photo about this service<textarea class="input" name="note" placeholder="Anything the record should contain"></textarea></label>
+      <label class="field">Photos<input class="input" type="file" name="media" accept="image/*" multiple></label>
+      <button class="btn ghost" type="submit">Add to record</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if parts %}
+  <div class="card reveal d3" style="margin-top:12px">
+    <h3 style="margin:0 0 6px">Parts on record</h3>
+    {% for part in parts %}
+    <div class="part-row">
+      <div class="p-top"><span class="p-name">{{ part['part_name'] }}</span>
+        <span class="chip {{ 'green' if part['data_source'] == 'PROVIDER' else 'amber' }}">{{ part['data_source']|lower }}</span></div>
+      <div class="p-meta">×{{ part['quantity'] }} · {{ part['supply_mode']|title }} supplied · {{ part['status']|title }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if timeline.certificate %}
+  <a class="card tap reveal d4" style="margin-top:12px" href="{{ url_for('v10.certificate_page', request_id=r['id']) }}">
+    <div class="v10-eyebrow">Service Certificate</div>
+    <div class="card-title" style="margin-top:6px cert-code">{{ timeline.certificate['certificate_code'] }}</div>
+    <div class="card-sub">₹{{ '%.0f'|format(timeline.certificate['final_amount'] or 0) }} · {{ timeline.certificate['warranty_days'] }}-day warranty</div>
+  </a>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function bindEvidence(formId, stageSelector) {
+  var form = document.getElementById(formId);
+  if (!form) return;
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    var button = form.querySelector('button[type="submit"]');
+    var restore = v10Loading(button, 'Saving…');
+    var data = new FormData(form);
+    var body = new FormData();
+    body.append('stage', stageSelector ? data.get('stage') : 'CUSTOMER_NOTE');
+    if (data.get('note')) body.append('note', data.get('note'));
+    if (data.get('diagnosis')) body.append('diagnosis', data.get('diagnosis'));
+    if (data.get('work')) body.append('work', data.get('work'));
+    var files = form.querySelector('input[type=file]');
+    if (files) Array.prototype.slice.call(files.files).slice(0, 4).forEach(function (file) { body.append('media', file); });
+    try {
+      await v10Api('/api/services/' + {{ r['id'] }} + '/evidence', { method: 'POST', body: body });
+      v10Toast('Evidence added to the Service Black Box.', 'success');
+      setTimeout(function () { location.reload(); }, 700);
+    } catch (error) { v10Toast(error.message, 'error'); restore(); }
+  });
+}
+bindEvidence('evidenceForm', true);
+bindEvidence('customerEvidenceForm', false);
+</script>
+{% endblock %}

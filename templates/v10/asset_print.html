@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartServe asset sticker · {{ asset['asset_uid'] }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/v10.css') }}?v=10">
+<style>
+  .sticker{width:min(430px,92vw);margin:24px auto;border:2px dashed var(--v10-line-2);border-radius:22px;padding:22px;text-align:center;background:#fff;color:#0e1b2e}
+  .sticker img{width:190px;height:190px;margin:0 auto}
+  .sticker h1{font-size:22px;margin:6px 0 2px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;letter-spacing:.06em}
+  .actions{display:flex;gap:10px;justify-content:center;margin:18px}
+  @media print{.actions{display:none}body{background:#fff}}
+</style>
+</head>
+<body class="v10">
+<div class="actions">
+  <button class="btn primary" onclick="window.print()">🖨️ Print sticker</button>
+  <a class="btn ghost" href="{{ url_for('v10.passport_page', asset_id=asset['id']) }}">Back to passport</a>
+</div>
+<div class="sticker">
+  <div class="v10-eyebrow">SmartServe Service Passport</div>
+  <h1>{{ asset['asset_type'] }}</h1>
+  <div class="muted">{{ asset['brand'] or '' }} {{ asset['model'] or '' }}</div>
+  <img src="{{ url_for('v10.api_asset_qr_png', asset_id=asset['id']) }}" alt="QR code">
+  <div class="mono">{{ asset['asset_uid'] }}</div>
+  <p style="font-size:12px;color:#556;margin-top:8px">Scan to view this asset's service history, warranty status and care plan. No personal data is stored in the code.</p>
+</div>
+</body>
+</html>

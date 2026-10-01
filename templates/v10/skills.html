@@ -1,0 +1,144 @@
+{% extends "v10/base.html" %}
+{% block title %}Skill Passport · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.provider_home') }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">Student Skill Passport</div><span class="muted tiny">Verified skills unlock higher-value work</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <section class="passport-hero reveal">
+    <div class="v10-row between">
+      <span class="v10-eyebrow" style="color:rgba(255,255,255,.85)">SmartServe Skill Passport</span>
+      <span class="chip" style="background:rgba(255,255,255,.2);color:#fff">Level {{ passport['overall_level'] }}</span>
+    </div>
+    <h1 style="margin:8px 0 4px">{{ passport['provider']['name'] }}</h1>
+    <div style="color:rgba(255,255,255,.92)">{{ passport['provider']['category'] or 'Service professional' }} · {{ passport['provider']['city'] or '' }}</div>
+    <div class="v10-row wrap" style="gap:8px;margin-top:10px">
+      <span class="chip" style="background:rgba(255,255,255,.18);color:#fff">✅ {{ passport['eligible']|length }} eligible skills</span>
+      <span class="chip" style="background:rgba(255,255,255,.18);color:#fff">🔒 {{ passport['restricted']|length }} restricted</span>
+      <span class="chip" style="background:rgba(255,255,255,.18);color:#fff">🏁 {{ passport['completed_jobs'] }} jobs</span>
+      {% if passport['provider']['kyc_verified_at'] %}<span class="chip" style="background:rgba(255,255,255,.18);color:#fff">KYC ✓</span>{% endif %}
+    </div>
+    <div class="health">
+      <div class="health-ring" style="--pct:{{ (passport['overall_level'] * 20) if passport['overall_level'] <= 5 else 100 }}%"><span>L{{ passport['overall_level'] }}</span></div>
+      <div><strong>Skill progress</strong>
+        <div class="v10-row" style="gap:8px;margin-top:6px">
+          {% for stage in passport['progress_stages'] %}
+          <span class="chip" style="background:rgba(255,255,255,{{ '.28' if stage['done'] else '.12' }});color:#fff;font-size:11px">{{ '✓' if stage['done'] else '○' }} {{ stage['label'] }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="card reveal d1" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">🚦 What SmartServe will send you</h3>
+    <p class="muted small" style="margin:0 0 10px">The matching engine checks the risk level of every service against your verified skills. Unverified high-risk skills are blocked — not silently allowed.</p>
+    {% if passport['restricted'] %}
+    {% for skill in passport['restricted'] %}
+    <div class="skill-lock">
+      <div class="s-top"><span class="s-name">🔒 {{ skill['skill_name'] }}</span>
+        <span class="chip {{ 'amber' if skill['status'] != 'VERIFIED' else 'green' }}">{{ skill['status']|title }}</span></div>
+      <div class="muted tiny">{{ skill['blocked_reason'] or 'Requires verification.' }}</div>
+      <div class="c-track" style="margin-top:8px"><div class="c-fill" style="width:{{ skill['confidence'] or 0 }}%"></div></div>
+      <div class="v10-row between" style="margin-top:6px">
+        <span class="muted tiny">{{ skill['jobs_completed'] or 0 }} job(s) · level {{ skill['level'] or 1 }}</span>
+        <button class="btn ghost xs" type="button" onclick="v10RequestVerification({{ skill['id'] }}, this)">Request verification</button>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  <div class="card reveal d1" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">✅ Eligible skills</h3>
+    {% for skill in passport['eligible'] %}
+    <div class="skill-row">
+      <div class="s-top"><span class="s-name">{{ skill['skill_name'] }}</span>
+        <span class="chip green">{{ skill['status']|title }}</span></div>
+      <div class="c-track" style="margin-top:8px"><div class="c-fill green" style="width:{{ skill['confidence'] or 0 }}%"></div></div>
+      <div class="v10-row between" style="margin-top:6px">
+        <span class="muted tiny">Level {{ skill['level'] or 1 }} · {{ skill['jobs_completed'] or 0 }} job(s)</span>
+        {% if skill['risk_level'] %}<span class="chip {{ 'red' if skill['risk_level'] in ['HIGH','RESTRICTED'] else '' }}">{{ skill['risk_level']|title }} risk</span>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <p class="muted small" style="margin:0">Add services to your provider profile to build skills.</p>
+    {% endfor %}
+  </div>
+
+  <div class="card reveal d2" style="margin-top:12px">
+    <div class="v10-row between"><h3 style="margin:0">🎓 Certifications</h3>
+      <button class="btn ghost xs" type="button" onclick="v10Sheet('certSheet')">＋ Add</button></div>
+    {% for cert in passport['certifications'] %}
+    <div class="skill-row">
+      <div class="s-top"><span class="s-name">{{ cert['name'] }}{% if cert['issuer'] %} · {{ cert['issuer'] }}{% endif %}</span>
+        <span class="chip {{ 'green' if cert['status'] == 'VERIFIED' else ('red' if cert['status'] == 'REJECTED' else 'amber') }}">{{ cert['status']|title }}</span></div>
+      <div class="muted tiny">Expires {{ (cert['expires_at'] or '')[:10] or '—' }}{% if cert['note'] %} · {{ cert['note'] }}{% endif %}</div>
+    </div>
+    {% else %}
+    <p class="muted small" style="margin:0">No certifications uploaded. High-risk services need a verified certification.</p>
+    {% endfor %}
+  </div>
+
+  <div class="card reveal d2" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">📈 Verification history</h3>
+    {% for item in passport['verifications'] %}
+    <div class="cert-line"><span>{{ item['method']|replace('_',' ')|title }} · {{ (item['created_at'] or '')[:10] }}</span>
+      <span class="chip {{ 'green' if item['status'] == 'VERIFIED' else 'amber' }}">{{ item['status']|title }}</span></div>
+    {% else %}
+    <p class="muted small" style="margin:0">Request verification of a restricted skill to start the assessment trail.</p>
+    {% endfor %}
+  </div>
+
+  <div class="card reveal d3" style="margin-top:12px">
+    <h3 style="margin:0 0 6px">Services you offer</h3>
+    <div class="v10-row wrap" style="gap:6px">
+      {% for service in services %}
+      <span class="chip {{ 'red' if service['risk_level'] in ['HIGH','RESTRICTED'] else '' }}">{{ service['name'] }}</span>
+      {% endfor %}
+    </div>
+    <a class="btn ghost sm" style="margin-top:10px" href="{{ url_for('provider_profile_edit') }}">Manage services &amp; radius</a>
+  </div>
+</div>
+
+<div class="sheet" id="certSheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div><h3>Add a certification</h3>
+  <p class="muted">An administrator reviews every certificate. Unverified certificates never unlock high-risk work.</p>
+  <form id="certForm" class="v10-stack-sm">
+    <label class="field">Certification name<input class="input" name="name" required placeholder="ITI Electrical, BEE Certified, OEM training…"></label>
+    <label class="field">Issuing body<input class="input" name="issuer" placeholder="ITI / NSDC / manufacturer"></label>
+    <div class="field-grid two">
+      <label class="field">Issued on<input class="input" type="date" name="issued_at"></label>
+      <label class="field">Expires on<input class="input" type="date" name="expires_at"></label>
+    </div>
+    <label class="field">Certificate number<input class="input" name="certificate_number"></label>
+    <label class="field">Document<input class="input" type="file" name="media" accept="image/*,application/pdf"></label>
+    <div class="btn-row"><button class="btn primary" type="submit">Submit for review</button>
+    <button class="btn ghost" type="button" onclick="v10CloseSheet('certSheet')">Cancel</button></div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function v10RequestVerification(skillId, button) {
+  var restore = v10Loading(button, 'Requesting…');
+  try {
+    await v10Api('/api/provider/skills/' + skillId + '/request-verification', { method: 'POST', body: {} });
+    v10Toast('Verification requested. Our team will review your skill assessment.', 'success');
+    setTimeout(function () { location.reload(); }, 800);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+}
+document.getElementById('certForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = event.target.querySelector('button[type=submit]');
+  var restore = v10Loading(button, 'Uploading…');
+  var data = new FormData(event.target);
+  try {
+    await v10Api('/api/provider/certifications', { method: 'POST', body: data });
+    v10Toast('Certification submitted for review.', 'success');
+    setTimeout(function () { location.reload(); }, 800);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+</script>
+{% endblock %}

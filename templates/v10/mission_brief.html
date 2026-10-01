@@ -1,0 +1,254 @@
+{% extends "v10/base.html" %}
+{% block title %}Mission brief · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.provider_home') }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">Mission brief</div>
+<span class="muted tiny">{{ r['service_name'] }} · {{ r['mission_code'] or ('Request #' ~ r['id']) }}</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  {% if not eligibility_ok %}
+  <div class="alert-strip danger reveal">
+    <span class="ico">⛔</span><span><strong>You are not eligible for this job</strong>
+    <span class="muted" style="display:block">Required skill or certification missing. Update your Skill Passport to unlock it.</span></span>
+  </div>
+  {% endif %}
+
+  <!-- 1. Problem -->
+  <div class="card reveal">
+    <div class="v10-eyebrow">1 · Problem</div>
+    <h1 style="font-size:18px;margin:8px 0 4px">{{ r['service_name'] }}</h1>
+    <p class="muted small" style="margin:0">{{ r['description'] }}</p>
+    <div class="v10-row wrap" style="gap:6px;margin-top:10px">
+      <span class="chip {{ 'red' if r['risk_level'] in ['HIGH','RESTRICTED'] else 'green' }}">{{ r['risk_level']|title }} risk</span>
+      {% if r['estimated_duration'] %}<span class="chip">⏱ {{ r['estimated_duration'] }}</span>{% endif %}
+      <span class="chip">👤 {{ r['customer_name'] }}</span>
+      <span class="chip">{{ r['status']|replace('_',' ')|title }}</span>
+      {% if r['pincode'] %}<span class="chip">📍 {{ r['pincode'] }}</span>{% endif %}
+      {% if r['scheduled_at'] %}<span class="chip amber">🗓 {{ (r['scheduled_at'] or '')[:16] }}</span>{% endif %}
+    </div>
+    {% if media_items %}
+    <div class="v10-row wrap" style="gap:8px;margin-top:10px">
+      {% for item in media_items if item.get('url') %}
+      <img class="evidence-thumb" src="{{ item['url'] }}" alt="Customer photo" loading="lazy">
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 2. Asset + 3. History -->
+  <div class="card reveal d1" style="margin-top:12px">
+    <div class="v10-eyebrow">2 · Asset &amp; history</div>
+    {% if r['asset_uid'] %}
+    <div class="cert-line" style="margin-top:8px"><span>Asset</span><span>{{ r['asset_type'] }} · {{ r['brand'] or '' }} {{ r['model'] or '' }}</span></div>
+    <div class="cert-line"><span>Asset ID</span><span class="cert-code">{{ r['asset_uid'] }}</span></div>
+    <div class="cert-line"><span>Health score</span><span>{{ r['health_score'] or 0 }}%</span></div>
+    <div class="cert-line"><span>Purchased</span><span>{{ (r['purchase_date'] or '')[:10] or 'Not recorded' }}</span></div>
+    <div class="cert-line"><span>Warranty until</span><span>{{ (r['warranty_end'] or '')[:10] or 'Expired / not recorded' }}</span></div>
+    {% if history %}
+    <strong class="small" style="display:block;margin-top:12px">Earlier services on this asset</strong>
+    {% for item in history %}
+    <div class="timeline-item done" style="margin-top:8px">
+      <div class="t-head"><span class="t-title">{{ item['service_name'] or 'Service' }}</span><span class="t-time">{{ (item['service_date'] or '')[:10] }}</span></div>
+      <div class="t-body">{% if item['problem'] %}{{ item['problem'][:130] }}{% endif %}
+        {% if item['parts_replaced'] %}<div class="tiny muted">Parts: {{ item['parts_replaced'] }}</div>{% endif %}</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="muted small" style="margin:10px 0 0">This is the first recorded service on this asset.</p>
+    {% endif %}
+    {% else %}
+    <p class="muted small" style="margin:8px 0 0">No Service Passport linked to this request.</p>
+    {% endif %}
+  </div>
+
+  <!-- 4. AI assessment -->
+  <div class="card reveal d1" style="margin-top:12px">
+    <div class="v10-eyebrow">3 · AI assessment</div>
+    <p class="muted small" style="margin:8px 0 4px"><strong>Understood as:</strong> {{ analysis['problem'] or r['ai_problem'] or 'Not analysed' }}</p>
+    {% set causes = analysis.get('possible_causes') or [] %}
+    {% if causes %}<ul class="muted small" style="margin:4px 0 6px;padding-left:18px">{% for cause in causes %}<li>{{ cause }}</li>{% endfor %}</ul>{% endif %}
+    <div class="v10-row wrap" style="gap:6px">
+      <span class="chip {{ 'blue' if analysis.get('data_source') == 'AI' else 'amber' }}">
+        {{ 'Gemini' if analysis.get('data_source') == 'AI' else 'Preliminary (offline rules)' }}</span>
+      {% if analysis.get('confidence') is not none %}<span class="chip">{{ (analysis['confidence'] * 100)|round|int }}% confidence</span>{% endif %}
+      {% if analysis.get('difficulty') %}<span class="chip">{{ analysis['difficulty']|title }}</span>{% endif %}
+      {% if analysis.get('estimated_price') %}<span class="chip green">Indicative ₹{{ analysis['estimated_price'] }}</span>{% endif %}
+    </div>
+    {% if analysis.get('safety_note') %}<div class="alert-strip danger" style="margin-top:10px"><span class="ico">⚠️</span><span class="muted">{{ analysis['safety_note'] }}</span></div>{% endif %}
+    <p class="muted tiny" style="margin-top:8px">AI output is preliminary decision support. You remain responsible for the on-site diagnosis — SmartServe never presents it as confirmed fact.</p>
+  </div>
+
+  <!-- 5. Mission context -->
+  {% if r['mission_id'] %}
+  <div class="card reveal d2" style="margin-top:12px">
+    <div class="v10-eyebrow">4 · Mission context</div>
+    <a class="card tap" style="margin-top:8px;background:var(--v10-soft)" href="{{ url_for('v10.mission_detail', mission_id=r['mission_id']) }}">
+      <strong class="small">{{ r['mission_code'] }} · {{ r['mission_title'] }}</strong>
+      <span class="muted tiny" style="display:block">{{ r['mission_problem'][:110] }}</span>
+      <span class="chip purple" style="margin-top:6px">Mission risk {{ r['mission_risk']|title }}</span>
+    </a>
+    {% if tasks %}
+    <strong class="small" style="display:block;margin:12px 0 6px">All tasks in this mission</strong>
+    <div class="task-list">
+      {% for task in tasks %}
+      <div class="task-item {{ task['status']|lower }}">
+        <span class="marker">{{ '✓' if task['status'] == 'COMPLETED' else ('●' if task['status'] == 'IN_PROGRESS' else '○') }}</span>
+        <div class="t-main"><div class="t-title">{{ task['task_order'] }}. {{ task['title'] }}</div>
+        <div class="muted tiny">{{ task['service_name'] }}{% if task['provider_name'] %} · {{ task['provider_name'] }}{% endif %}</div></div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if my_task %}<p class="muted tiny">You are being invited for task {{ my_task['task_order'] }}: {{ my_task['title'] }}.</p>{% endif %}
+    <p class="muted tiny">When you accept, only your task is assigned to you. The customer coordinates the full mission.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- 6. Money -->
+  <div class="card reveal d2" style="margin-top:12px">
+    <div class="v10-eyebrow">5 · Budget &amp; schedule</div>
+    <div class="cert-line" style="margin-top:8px"><span>Customer budget</span><span>{{ ('₹%.0f'|format(r['budget'])) if r['budget'] else 'Not given' }}</span></div>
+    <div class="cert-line"><span>AI estimate (indicative)</span><span>{{ r['estimated_price'] or 'Not available' }}</span></div>
+    <div class="cert-line"><span>Mission estimate</span><span>{{ ('₹%.0f'|format(r['estimated_total'])) if r['estimated_total'] else '—' }}</span></div>
+    <div class="cert-line"><span>Timing</span><span>{{ (r['scheduled_at'] or '')[:16] or 'As soon as possible' }}</span></div>
+    <div class="cert-line"><span>Parts pricing</span><span>{{ r['parts_pricing_mode'] or 'At cost, customer approves each part' }}</span></div>
+    <p class="muted tiny">Submit your quote after the on-site diagnosis. The customer must approve any change before the price moves.</p>
+  </div>
+
+  <!-- 7. Safety -->
+  <div class="card reveal d3" style="margin-top:12px">
+    <div class="v10-eyebrow">6 · Safety</div>
+    {% if r['safety_notes'] %}<p class="muted small">{{ r['safety_notes'] }}</p>{% endif %}
+    <div class="cert-line"><span>Required equipment</span><span>{{ r['required_equipment'] or 'Standard toolkit' }}</span></div>
+    <div class="cert-line"><span>Required certification</span><span>{{ r['required_certification'] or 'None' }}</span></div>
+    <div class="cert-line"><span>Pricing model</span><span>{{ (r['pricing_model'] or 'VISIT_PLUS_WORK')|replace('_',' ')|title }}</span></div>
+    <p class="muted tiny">Customer contact details stay hidden until you accept. Use on-site evidence before starting work.</p>
+  </div>
+
+  <!-- 8. Parts -->
+  <div class="card reveal d3" style="margin-top:12px">
+    <div class="v10-eyebrow">7 · Expected parts</div>
+    {% if parts %}
+    <div class="v10-row wrap" style="gap:6px;margin-top:8px">
+      <span class="chip">{{ parts_summary['count'] }} item(s)</span>
+      <span class="chip green">≈ ₹{{ parts_summary['estimated_cost']|int }}</span>
+      {% if parts_summary['pending_approval'] %}<span class="chip amber">{{ parts_summary['pending_approval'] }} awaiting customer approval</span>{% endif %}
+    </div>
+    <div style="margin-top:8px">
+      {% for part in parts[:8] %}
+      <div class="part-row">
+        <div class="p-top"><span class="p-name">{{ part['part_name'] }}</span>
+          <span class="chip {{ 'green' if part['data_source'] == 'PROVIDER' else 'amber' }}">{{ part['data_source']|lower }}</span></div>
+        <div class="p-meta">×{{ part['quantity'] }} · {{ part['supply_mode']|replace('_',' ')|title }}
+          {% if part['unit_price_max'] %} · ₹{{ part['unit_price_min']|int }}–{{ part['unit_price_max']|int }}{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="muted tiny">Items marked <em>estimate</em> come from SmartServe's parts intelligence — availability and price are indicative, not a live supplier quote. Add your own item after diagnosis.</p>
+    {% else %}
+    <p class="muted small" style="margin:8px 0 0">No parts expected before diagnosis.</p>
+    {% endif %}
+  </div>
+
+  <!-- Actions -->
+  <div class="card reveal d4" style="margin-top:12px">
+    <div class="v10-eyebrow">Your decision</div>
+    <div class="btn-row" style="margin-top:10px">
+      {% if r['provider_id'] and r['provider_id'] == provider['id'] and r['status'] == 'ACCEPTED' %}
+      <a class="btn primary" href="{{ url_for('v10.booking_detail', request_id=r['id']) }}">Open job workspace</a>
+      {% else %}
+      <button class="btn primary" type="button" id="acceptBtn">✓ Accept job</button>
+      {% endif %}
+      <button class="btn ghost" type="button" onclick="v10Sheet('clarifySheet')">❓ Ask a question</button>
+      <button class="btn ghost" type="button" onclick="v10Sheet('diagnosisSheet')">🔎 Propose diagnosis</button>
+      <button class="btn ghost" type="button" onclick="v10Sheet('packageSheet')">📦 Propose package</button>
+      <a class="btn danger" href="{{ url_for('v10.provider_home') }}">Decline</a>
+    </div>
+    <p class="muted tiny" style="margin-top:10px">{{ message_count }} message(s) on this request. Declining removes it from your list without penalty.</p>
+  </div>
+</div>
+
+<div class="sheet" id="clarifySheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div><h3>Ask the customer</h3>
+  <p class="muted">Neutral questions about access, symptoms or scope. Never request direct payment.</p>
+  <form id="clarifyForm" class="v10-stack-sm">
+    <label class="field">Question<textarea class="input" name="question" required placeholder="How long has the unit been making this noise?"></textarea></label>
+    <label class="field">What you will check<input class="input" name="plan" placeholder="Example: compressor current draw and gas pressure"></label>
+    <div class="btn-row"><button class="btn primary" type="submit">Send question</button>
+    <button class="btn ghost" type="button" onclick="v10CloseSheet('clarifySheet')">Cancel</button></div>
+  </form>
+</div>
+
+<div class="sheet" id="diagnosisSheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div><h3>Propose a diagnosis</h3>
+  <form id="diagnosisForm" class="v10-stack-sm">
+    <label class="field">Diagnosis<input class="input" name="diagnosis" required placeholder="Example: Capacitor failed, compressor otherwise healthy"></label>
+    <label class="field">Findings<textarea class="input" name="findings" placeholder="Measurements, readings, what you observed"></textarea></label>
+    <label class="field">Estimated amount (₹)<input class="input" type="number" name="estimated_amount" min="0" step="10"></label>
+    <label class="field">Estimated duration<input class="input" name="estimated_duration" placeholder="e.g. 90 minutes"></label>
+    <div class="btn-row"><button class="btn primary" type="submit">Send diagnosis</button>
+    <button class="btn ghost" type="button" onclick="v10CloseSheet('diagnosisSheet')">Cancel</button></div>
+  </form>
+</div>
+
+<div class="sheet" id="packageSheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div><h3>Propose a service package</h3>
+  <p class="muted">Give the customer clear options instead of one number.</p>
+  <form id="packageForm" class="v10-stack-sm">
+    <label class="field">Package name<input class="input" name="name" placeholder="Standard repair"></label>
+    <label class="field">What is included<textarea class="input" name="includes" placeholder="Capacitor replacement, gas top-up, 6-month warranty"></textarea></label>
+    <div class="field-grid two">
+      <label class="field">Amount (₹)<input class="input" type="number" name="amount" min="0" step="10"></label>
+      <label class="field">Duration<input class="input" name="duration" placeholder="2 hours"></label>
+    </div>
+    <label class="field">Part warranty (days)<input class="input" type="number" name="warranty_days" min="0" step="30" value="90"></label>
+    <div class="btn-row"><button class="btn primary" type="submit">Send package</button>
+    <button class="btn ghost" type="button" onclick="v10CloseSheet('packageSheet')">Cancel</button></div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var requestId = {{ r['id'] }};
+document.getElementById('acceptBtn')?.addEventListener('click', async function () {
+  var restore = v10Loading(this, 'Accepting…');
+  try {
+    var data = await v10Api('/api/service/' + requestId + '/accept', { method: 'POST', body: {} });
+    v10Toast('Job accepted — arrival code ' + (data.confirmation_code || '') + ' is ready.', 'success');
+    setTimeout(function () { location.href = data.redirect; }, 700);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+async function postJson(url, payload, button, message, redirect) {
+  var restore = v10Loading(button, 'Sending…');
+  try {
+    await v10Api(url, { method: 'POST', body: payload });
+    v10Toast(message, 'success');
+    setTimeout(function () { location.href = redirect || location.href; }, 800);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+}
+document.getElementById('clarifyForm')?.addEventListener('submit', function (event) {
+  event.preventDefault();
+  var data = new FormData(event.target);
+  postJson('/api/service/' + requestId + '/clarify',
+    { question: data.get('question'), plan: data.get('plan') },
+    event.target.querySelector('button[type=submit]'), 'Question sent to the customer.');
+});
+document.getElementById('diagnosisForm')?.addEventListener('submit', function (event) {
+  event.preventDefault();
+  var data = new FormData(event.target);
+  postJson('/api/service/' + requestId + '/propose-diagnosis',
+    { diagnosis: data.get('diagnosis'), findings: data.get('findings'),
+      estimated_amount: data.get('estimated_amount'), estimated_duration: data.get('estimated_duration') },
+    event.target.querySelector('button[type=submit]'), 'Diagnosis shared with the customer.');
+});
+document.getElementById('packageForm')?.addEventListener('submit', function (event) {
+  event.preventDefault();
+  var data = new FormData(event.target);
+  postJson('/api/service/' + requestId + '/propose-package',
+    { name: data.get('name'), includes: data.get('includes'), amount: data.get('amount'),
+      duration: data.get('duration'), warranty_days: data.get('warranty_days') },
+    event.target.querySelector('button[type=submit]'), 'Package sent to the customer.');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,406 @@
+{% extends "v10/base.html" %}
+{% block title %}Book {{ service['name'] }} · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.customer_home') }}" aria-label="Back">←</a>
+<div>
+  <div class="v10-header-title">{{ service['name'] }}</div>
+  <span class="muted tiny">{{ service['category'] }}{% if service['subcategory'] %} · {{ service['subcategory'] }}{% endif %}</span>
+</div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame" data-stepper id="bookingStepper">
+
+  <!-- Step rail -->
+  <div class="stepper" role="tablist" aria-label="Booking steps">
+    {% for label in steps %}
+    <button class="step {{ 'active' if loop.first }}" type="button" data-step role="tab" id="stepTab{{ loop.index0 }}">
+      <span class="num">{{ loop.index }}</span>{{ label }}
+    </button>
+    {% endfor %}
+  </div>
+  <div class="progress-track" style="margin-bottom:14px"><div class="progress-fill" data-step-progress style="width:14%"></div></div>
+  <div class="muted tiny" data-step-counter style="margin-bottom:10px">Step 1 of {{ steps|length }}</div>
+
+  <!-- STEP 1: PROBLEM -->
+  <section data-step-panel class="reveal">
+    <div class="card">
+      <h2>What is going wrong?</h2>
+      <p class="muted">Describe it in your own words. SmartServe uses this to understand the problem, list likely causes and estimate a price range.</p>
+      <label class="field">Problem description
+        <textarea class="input" id="problemInput" data-required data-required-message="Please describe the problem." placeholder="Example: {{ service['name'] }} — cooling has stopped and there is a rattling noise." required></textarea>
+      </label>
+      <div class="v10-row" style="margin-top:8px">
+        <button class="btn ghost sm" type="button" data-voice-target="problemInput" data-voice-lang="en-IN">🎙️ Speak</button>
+        <label class="btn ghost sm" style="cursor:pointer">
+          📷 Add photos (up to 4)
+          <input type="file" id="mediaInput" name="media" accept="image/*" multiple hidden>
+        </label>
+      </div>
+      <div id="mediaPreview" class="v10-row wrap" style="margin-top:10px;gap:8px"></div>
+      <button class="btn soft sm" type="button" id="analyseBtn" style="margin-top:12px">🧠 Get AI understanding</button>
+      <div id="analysisBox" style="margin-top:12px"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="v10-eyebrow">What this service includes</div>
+      <p class="muted" style="margin:6px 0 8px">{{ service['description'] }}</p>
+      <div class="v10-row wrap" style="gap:8px">
+        <span class="chip blue">⏱ {{ service['estimated_duration'] or 'On-site visit' }}</span>
+        <span class="chip">💳 {{ service['pricing_model']|replace('_',' ')|title }}</span>
+        <span class="chip {{ 'red' if service['risk_level'] in ['HIGH','RESTRICTED'] else ('amber' if service['risk_level'] == 'MEDIUM' else 'green') }}">{{ service['risk_level']|title }} risk</span>
+        {% if service['min_price_hint'] %}<span class="chip amber">₹{{ service['min_price_hint']|int }}–₹{{ service['max_price_hint']|int }} guidance</span>{% endif %}
+      </div>
+      {% if service['required_equipment'] %}
+      <div class="muted tiny" style="margin-top:10px">Provider equipment: {{ service['required_equipment']|join(', ') }}</div>
+      {% endif %}
+      {% if service['required_certification'] %}
+      <div class="alert-strip warn" style="margin-top:10px"><span class="ico">🎓</span>
+        <span class="muted">This service requires verified capability: <strong>{{ service['required_certification'] }}</strong>. SmartServe only sends it to eligible providers.</span></div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- STEP 2: ASSET -->
+  <section data-step-panel hidden class="reveal">
+    <div class="card">
+      <h2>Which asset is this about?</h2>
+      <p class="muted">Linking a Service Passport lets SmartServe use its history, warranty and previous repairs in the diagnosis. You can also continue without an asset.</p>
+      {% if assets %}
+      <div class="v10-stack-sm" role="radiogroup" aria-label="Choose asset">
+        {% for asset in assets %}
+        <label class="card" style="cursor:pointer;padding:12px">
+          <div class="v10-row between">
+            <span class="v10-row" style="gap:10px">
+              <input type="radio" name="asset_choice" value="{{ asset['id'] }}" style="width:18px;height:18px">
+              <span><strong class="small">{{ asset['asset_type'] }}</strong>
+              <span class="muted tiny" style="display:block">{{ asset['brand'] or '' }} {{ asset['model'] or '' }} · {{ asset['asset_uid'] }}{% if asset['data_source'] == 'DEMO' %} · DEMO{% endif %}</span></span>
+            </span>
+            <span class="chip green">health {{ asset['health_score'] }}%</span>
+          </div>
+        </label>
+        {% endfor %}
+        <label class="card" style="cursor:pointer;padding:12px">
+          <div class="v10-row" style="gap:10px">
+            <input type="radio" name="asset_choice" value="new" style="width:18px;height:18px">
+            <span><strong class="small">Register a new asset</strong><span class="muted tiny" style="display:block">Creates a permanent Service Passport with QR</span></span>
+          </div>
+        </label>
+        <label class="card" style="cursor:pointer;padding:12px">
+          <div class="v10-row" style="gap:10px">
+            <input type="radio" name="asset_choice" value="" checked style="width:18px;height:18px">
+            <span><strong class="small">No asset / not applicable</strong><span class="muted tiny" style="display:block">Continue without a Service Passport</span></span>
+          </div>
+        </label>
+      </div>
+      {% else %}
+      <div class="empty-state" style="padding:18px">
+        <div class="ico">🧾</div><strong>No Service Passports yet</strong>
+        <p>Register the asset now — you will get a QR code and permanent history.</p>
+      </div>
+      <label class="card" style="cursor:pointer;padding:12px;display:block">
+        <div class="v10-row" style="gap:10px"><input type="radio" name="asset_choice" value="new" checked style="width:18px;height:18px">
+        <span><strong class="small">Register this asset</strong></span></div>
+      </label>
+      <label class="card" style="cursor:pointer;padding:12px;display:block">
+        <div class="v10-row" style="gap:10px"><input type="radio" name="asset_choice" value="" style="width:18px;height:18px">
+        <span><strong class="small">Continue without an asset</strong></span></div>
+      </label>
+      {% endif %}
+
+      <div id="newAssetFields" hidden style="margin-top:12px;border-top:1px dashed var(--v10-line);padding-top:12px">
+        <div class="field-grid two">
+          <label class="field full">Asset type
+            <select class="input" id="newAssetType">
+              {% for asset_type, category, icon in asset_types %}
+              <option value="{{ asset_type }}" {% if asset_type|lower in (service['name']|lower) or (service['asset_types'] and asset_type in service['asset_types']) %}selected{% endif %}>{{ icon }} {{ asset_type }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="field">Brand<input class="input" id="newAssetBrand" placeholder="e.g. LG"></label>
+          <label class="field">Model<input class="input" id="newAssetModel" placeholder="e.g. PS-Q19YNZE"></label>
+          <label class="field">Serial number<input class="input" id="newAssetSerial" placeholder="Optional"></label>
+          <label class="field">Nickname<input class="input" id="newAssetNickname" placeholder="e.g. Living room AC"></label>
+          <label class="field">Purchase date<input class="input" type="date" id="newAssetPurchase"></label>
+          <label class="field">Warranty ends<input class="input" type="date" id="newAssetWarranty"></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: DETAILS -->
+  <section data-step-panel hidden class="reveal">
+    <div class="card">
+      <h2>Service location &amp; address</h2>
+      <label class="field">6-digit PIN code
+        <input class="input" id="pincodeInput" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" data-required data-required-message="Enter your 6-digit PIN code." placeholder="e.g. 585401" required>
+      </label>
+      <label class="field" style="margin-top:10px">Full address <span class="hint">shared with the provider only after they accept</span>
+        <textarea class="input" id="addressInput" placeholder="Flat / house, street, landmark"></textarea>
+      </label>
+      {% if addresses %}
+      <div class="v10-stack-sm" style="margin-top:10px">
+        <span class="muted tiny">Saved locations</span>
+        {% for address in addresses %}
+        <button class="btn ghost sm" type="button" style="justify-content:flex-start"
+                onclick="document.getElementById('addressInput').value='{{ address['address_text']|e }}';document.getElementById('pincodeInput').value='{{ address['pincode'] or '' }}'">
+          📍 {{ address['label'] or 'Address' }} · {{ address['address_text'][:34] }}{% if address['address_text']|length > 34 %}…{% endif %}
+        </button>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <label class="field" style="margin-top:12px">Special instructions for the professional
+        <textarea class="input" id="instructionsInput" placeholder="Gate code, parking, pets, best time to visit…"></textarea>
+      </label>
+      <label class="field" style="margin-top:10px">Safety information <span class="hint">anything the professional must know</span>
+        <input class="input" id="safetyInput" placeholder="e.g. wet floor near the switchboard">
+      </label>
+    </div>
+  </section>
+
+  <!-- STEP 4: PROVIDER -->
+  <section data-step-panel hidden class="reveal">
+    <div class="card">
+      <h2>Provider preference</h2>
+      <p class="muted">SmartServe always checks skill eligibility before a professional can accept this job.</p>
+      <div class="v10-stack-sm" role="radiogroup" aria-label="Provider preference">
+        <label class="card" style="cursor:pointer;padding:12px">
+          <div class="v10-row" style="gap:10px"><input type="radio" name="provider_pref" value="CHOOSE" checked style="width:18px;height:18px">
+          <span><strong class="small">Let me choose from nearby professionals</strong>
+          <span class="muted tiny" style="display:block">Compare trust score, distance, skills and reviews before you confirm</span></span></div>
+        </label>
+        <label class="card" style="cursor:pointer;padding:12px">
+          <div class="v10-row" style="gap:10px"><input type="radio" name="provider_pref" value="AUTO" style="width:18px;height:18px">
+          <span><strong class="small">Auto-match the best eligible provider</strong>
+          <span class="muted tiny" style="display:block">SmartServe ranks by trust score, distance and verified skills</span></span></div>
+        </label>
+      </div>
+      <div class="alert-strip info" style="margin-top:12px"><span class="ico">🎓</span>
+        <span class="muted">Providers can only accept services their Skill Passport allows. High-risk work (electrical, gas, pest control, welding) requires verified capability.</span></div>
+    </div>
+  </section>
+
+  <!-- STEP 5: TIME -->
+  <section data-step-panel hidden class="reveal">
+    <div class="card">
+      <h2>When should the professional arrive?</h2>
+      <div class="v10-stack-sm" role="radiogroup" aria-label="Timing">
+        <label class="card" style="cursor:pointer;padding:12px">
+          <div class="v10-row" style="gap:10px"><input type="radio" name="when" value="NOW" checked style="width:18px;height:18px" id="whenNow">
+          <span><strong class="small">As soon as possible</strong><span class="muted tiny" style="display:block">Start matching immediately</span></span></div>
+        </label>
+        <label class="card" style="cursor:pointer;padding:12px">
+          <div class="v10-row" style="gap:10px"><input type="radio" name="when" value="SCHEDULE" style="width:18px;height:18px" id="whenSchedule">
+          <span><strong class="small">Schedule for later</strong><span class="muted tiny" style="display:block">SmartServe activates matching exactly at that time</span></span></div>
+        </label>
+      </div>
+      <div id="scheduleFields" hidden style="margin-top:12px">
+        <div class="field-grid two">
+          <label class="field">Date &amp; time<input class="input" type="datetime-local" id="scheduleAt"></label>
+          <label class="field">Preferred slot note<input class="input" id="preferredWindow" placeholder="e.g. morning, after 6 pm"></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 6: PRICE -->
+  <section data-step-panel hidden class="reveal">
+    <div class="card">
+      <h2>Budget &amp; expected cost</h2>
+      <div id="priceSummary" class="v10-stack-sm">
+        <div class="cert-line"><span>AI estimated range</span><span id="priceEstimate">{{ ('₹' ~ service['min_price_hint']|int ~ '–₹' ~ service['max_price_hint']|int) if service['min_price_hint'] else 'After diagnosis' }}</span></div>
+        <div class="cert-line"><span>Pricing model</span><span>{{ service['pricing_model']|replace('_',' ')|title }}</span></div>
+        <div class="cert-line"><span>SmartServe platform fee</span><span>From ₹20</span></div>
+      </div>
+      <label class="field" style="margin-top:12px">Your budget <span class="hint">optional — the provider sees this but you are never charged silently</span>
+        <input class="input" id="budgetInput" type="number" min="0" step="50" inputmode="numeric" placeholder="₹ e.g. 2500">
+      </label>
+      <div class="alert-strip info" style="margin-top:12px"><span class="ico">₹</span>
+        <span class="muted">You approve the final price before work starts. Material price changes always require your confirmation.</span></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="v10-eyebrow">Likely parts (estimate)</div>
+      <div id="partsBox" class="muted small" style="margin-top:6px">Parts appear after SmartServe understands the problem.</div>
+    </div>
+  </section>
+
+  <!-- STEP 7: CONFIRM -->
+  <section data-step-panel hidden class="reveal">
+    <div class="card">
+      <h2>Review your request</h2>
+      <div id="reviewBox" class="v10-stack-sm small"></div>
+      <div class="alert-strip warn" style="margin-top:12px"><span class="ico">🔒</span>
+        <span class="muted">Your phone number and full address are only shared with the provider you confirm.</span></div>
+      <div id="submitError" class="muted small" style="color:var(--v10-red);margin-top:8px"></div>
+    </div>
+  </section>
+
+  <div class="btn-row" style="margin-top:16px">
+    <button class="btn ghost" type="button" data-step-back>← Back</button>
+    <button class="btn primary" type="button" data-step-next data-final-label="Confirm booking ✓" style="flex:1">Continue →</button>
+  </div>
+  <p class="muted tiny" style="margin-top:10px;text-align:center">By confirming you agree to SmartServe's service terms and safety policy.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var serviceId = {{ service['id'] }};
+  var serviceName = {{ service['name']|tojson }};
+  var analysis = null, plan = null;
+
+  /* ---------- media previews ---------- */
+  var mediaInput = document.getElementById('mediaInput');
+  mediaInput.addEventListener('change', function () {
+    var box = document.getElementById('mediaPreview');
+    box.innerHTML = '';
+    Array.prototype.slice.call(mediaInput.files).slice(0, 4).forEach(function (file) {
+      var url = URL.createObjectURL(file);
+      box.insertAdjacentHTML('beforeend', '<img class="evidence-thumb" src="' + url + '" alt="Problem photo preview">');
+    });
+  });
+
+  /* ---------- asset choice ---------- */
+  document.querySelectorAll('input[name="asset_choice"]').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+      document.getElementById('newAssetFields').hidden = radio.value !== 'new' || !radio.checked;
+    });
+  });
+
+  /* ---------- timing ---------- */
+  document.getElementById('whenSchedule').addEventListener('change', function () {
+    document.getElementById('scheduleFields').hidden = false;
+  });
+  document.getElementById('whenNow').addEventListener('change', function () {
+    document.getElementById('scheduleFields').hidden = true;
+  });
+
+  function assetChoice() {
+    var checked = document.querySelector('input[name="asset_choice"]:checked');
+    return checked ? checked.value : '';
+  }
+  window.assetChoice = assetChoice;
+
+  function renderParts(parts) {
+    var box = document.getElementById('partsBox');
+    if (!parts || !parts.length) {
+      box.innerHTML = 'No specific part identified from the description yet — the provider confirms on site.';
+      return;
+    }
+    box.innerHTML = parts.map(function (part) {
+      var price = (part.unit_price_min && part.unit_price_max)
+        ? '₹' + part.unit_price_min + '–₹' + part.unit_price_max : 'Price on inspection';
+      return '<div class="part-row"><div class="p-top"><span class="p-name">🔩 ' + escapeHtml(part.part_name) +
+        '</span><span class="chip amber">Estimated</span></div>' +
+        '<div class="p-meta">Compatible with ' + escapeHtml(part.compatibility || 'this asset') + ' · ' + price +
+        ' · ' + escapeHtml(part.availability_note || 'Estimated availability') + '</div></div>';
+    }).join('');
+  }
+
+  /* ---------- AI analysis ---------- */
+  document.getElementById('analyseBtn').addEventListener('click', async function () {
+    var problem = document.getElementById('problemInput').value.trim();
+    if (!problem) { v10Toast('Describe the problem first.', 'warn'); return; }
+    var restore = v10Loading(this, 'Understanding…');
+    var box = document.getElementById('analysisBox');
+    box.innerHTML = '<div class="skeleton block"></div>';
+    try {
+      var body = { description: problem, service_name: serviceName };
+      var choice = assetChoice();
+      if (choice && choice !== 'new') body.asset_id = Number(choice);
+      var data = await v10Api('/api/ai/analyze-v10', { method: 'POST', body: body });
+      analysis = data.analysis; plan = data.plan;
+      var isAI = analysis.data_source === 'AI';
+      box.innerHTML =
+        '<div class="alert-strip ' + (isAI ? 'info' : 'warn') + '"><span class="ico">' + (isAI ? '🤖' : '🧮') + '</span>' +
+        '<span><strong>' + (isAI ? 'Gemini assessment' : 'Offline rules assessment') + '</strong>' +
+        '<span class="muted" style="display:block">' + escapeHtml(analysis.disclaimer || '') + '</span></span></div>' +
+        '<div class="card" style="padding:12px;margin-top:8px">' +
+        '<strong class="small">Understanding</strong><p class="muted" style="margin:4px 0 8px">' + escapeHtml(analysis.problem || '') + '</p>' +
+        '<strong class="small">Possible causes</strong><ul class="muted" style="margin:4px 0 8px;padding-left:18px">' +
+        (analysis.possible_causes || []).map(function (cause) { return '<li>' + escapeHtml(cause) + '</li>'; }).join('') + '</ul>' +
+        '<strong class="small">Mission plan</strong><ol class="muted" style="margin:4px 0 0;padding-left:18px">' +
+        ((plan && plan.tasks) || []).map(function (task) { return '<li><strong>' + escapeHtml(task.title) + '</strong> — ' + escapeHtml(task.service_name || '') + '</li>'; }).join('') + '</ol>' +
+        ((analysis.safety_notes || []).length ? '<div class="alert-strip danger" style="margin-top:10px"><span class="ico">⚠️</span><span class="muted">' + analysis.safety_notes.map(escapeHtml).join('<br>') + '</span></div>' : '') +
+        '</div>';
+      var range = analysis.estimated_price_range || {};
+      if (range.min) {
+        document.getElementById('priceEstimate').textContent = '₹' + range.min.toLocaleString('en-IN') + '–₹' + range.max.toLocaleString('en-IN');
+      }
+      renderParts(data.parts || []);
+    } catch (error) {
+      box.innerHTML = '';
+      v10Toast(error.message, 'error');
+    } finally { restore(); }
+  });
+
+  /* ---------- review + submit ---------- */
+  var fieldCapture = ['problem', 'asset', 'details', 'provider', 'time', 'price', 'confirm'];
+  function refreshReview() {
+    var choice = assetChoice();
+    var assetText = 'No asset linked';
+    if (choice && choice !== 'new') {
+      var label = document.querySelector('input[name="asset_choice"][value="' + choice + '"]');
+      assetText = label ? label.closest('.card').querySelector('strong').textContent : 'Selected asset';
+    } else if (choice === 'new') {
+      assetText = 'New passport: ' + document.getElementById('newAssetType').value;
+    }
+    var providerPref = (document.querySelector('input[name="provider_pref"]:checked') || {}).value || 'CHOOSE';
+    var when = (document.querySelector('input[name="when"]:checked') || {}).value || 'NOW';
+    document.getElementById('reviewBox').innerHTML =
+      '<div class="cert-line"><span>Service</span><span>' + escapeHtml(serviceName) + '</span></div>' +
+      '<div class="cert-line"><span>Problem</span><span>' + escapeHtml(document.getElementById('problemInput').value || '—') + '</span></div>' +
+      '<div class="cert-line"><span>Asset</span><span>' + escapeHtml(assetText) + '</span></div>' +
+      '<div class="cert-line"><span>Location</span><span>' + escapeHtml(document.getElementById('pincodeInput').value || '—') + '</span></div>' +
+      '<div class="cert-line"><span>Provider</span><span>' + (providerPref === 'AUTO' ? 'Auto-match best eligible' : 'I will choose') + '</span></div>' +
+      '<div class="cert-line"><span>Timing</span><span>' + (when === 'NOW' ? 'As soon as possible' : escapeHtml(document.getElementById('scheduleAt').value || 'Scheduled')) + '</span></div>' +
+      '<div class="cert-line"><span>Budget</span><span>' + (document.getElementById('budgetInput').value ? '₹' + escapeHtml(document.getElementById('budgetInput').value) : 'Open') + '</span></div>' +
+      (analysis ? '<div class="cert-line"><span>AI assessment</span><span>' + (analysis.data_source === 'AI' ? 'Gemini' : 'Offline rules') + ' · ' + Math.round((analysis.confidence || 0) * 100) + '% confidence</span></div>' : '');
+  }
+  document.addEventListener('click', function (event) {
+    if (event.target.matches('[data-step-next]')) setTimeout(refreshReview, 30);
+  });
+
+  document.getElementById('bookingStepper').submitBooking = async function () {
+    var button = document.querySelector('[data-step-next]');
+    var restore = v10Loading(button, 'Creating booking…');
+    document.getElementById('submitError').textContent = '';
+    var form = new FormData();
+    form.append('service_id', serviceId);
+    form.append('problem', document.getElementById('problemInput').value);
+    form.append('description', document.getElementById('instructionsInput').value);
+    form.append('pincode', document.getElementById('pincodeInput').value);
+    form.append('address_text', document.getElementById('addressInput').value);
+    form.append('budget', document.getElementById('budgetInput').value);
+    var choice = assetChoice();
+    if (choice && choice !== 'new') form.append('asset_id', choice);
+    if (choice === 'new') {
+      form.append('new_asset_type', document.getElementById('newAssetType').value);
+      form.append('new_asset_brand', document.getElementById('newAssetBrand').value);
+      form.append('new_asset_model', document.getElementById('newAssetModel').value);
+      form.append('new_asset_serial', document.getElementById('newAssetSerial').value);
+      form.append('new_asset_nickname', document.getElementById('newAssetNickname').value);
+      form.append('new_asset_purchase_date', document.getElementById('newAssetPurchase').value);
+      form.append('new_asset_warranty_end', document.getElementById('newAssetWarranty').value);
+    }
+    var safety = document.getElementById('safetyInput').value;
+    if (safety) form.append('preferred_time', 'Safety: ' + safety);
+    var when = (document.querySelector('input[name="when"]:checked') || {}).value;
+    if (when === 'SCHEDULE' && document.getElementById('scheduleAt').value) {
+      form.append('scheduled_at', document.getElementById('scheduleAt').value.replace('T', ' '));
+    }
+    Array.prototype.slice.call(mediaInput.files).slice(0, 4).forEach(function (file) {
+      form.append('media', file);
+    });
+    try {
+      var data = await v10Api('/api/v10/bookings', { method: 'POST', body: form });
+      v10Toast('Mission ' + data.mission_code + ' created — finding providers.', 'success');
+      setTimeout(function () { location.href = data.redirect; }, 700);
+    } catch (error) {
+      document.getElementById('submitError').textContent = error.message;
+      v10Toast(error.message, 'error');
+      restore();
+    }
+  };
+})();
+</script>
+{% endblock %}

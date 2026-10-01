@@ -1,0 +1,102 @@
+{% extends "v10/base.html" %}
+{% block title %}Provider home · SmartServe{% endblock %}
+{% block header_left %}
+<div><div class="v10-header-title">Hello, {{ provider['name'].split(' ')[0] if provider['name'] else 'partner' }}</div>
+<span class="muted tiny">{{ provider['category'] or 'Service professional' }} · {{ provider['city'] or 'Your city' }}</span></div>
+{% endblock %}
+{% block header_actions %}
+<a class="icon-btn" href="{{ url_for('v10.messages_page') }}" aria-label="Messages">💬</a>
+<a class="icon-btn" href="{{ url_for('v10.profile_page') }}" aria-label="Profile">👤</a>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <div class="stat-row reveal">
+    <div class="stat"><b>{{ stats['completed'] or 0 }}</b><span>Completed</span></div>
+    <div class="stat"><b>₹{{ (stats['earnings'] or 0)|int }}</b><span>Net earnings</span></div>
+    <div class="stat"><b>{{ '%.1f'|format(stats['rating'] or 0) }}</b><span>Rating ({{ stats['reviews'] or 0 }})</span></div>
+    <div class="stat"><b>L{{ skills['overall_level'] if skills else 0 }}</b><span>Skill level</span></div>
+  </div>
+
+  {% if skills and skills['restricted'] %}
+  <div class="alert-strip warn reveal d1" style="margin-top:12px">
+    <span class="ico">🎓</span>
+    <span><strong>{{ skills['restricted']|length }} skill(s) restricted</strong>
+    <span class="muted" style="display:block">SmartServe will not send high-risk jobs until those skills are verified.</span>
+    <a class="btn ghost xs" style="margin-top:6px" href="{{ url_for('v10.skill_passport_page') }}">Open Skill Passport</a></span>
+  </div>
+  {% endif %}
+
+  <div class="v10-section" id="requests">
+    <div class="v10-section-head"><h2>🔔 New requests</h2><a class="muted tiny" href="{{ url_for('v10.messages_page') }}">{{ new_requests|length }} open</a></div>
+    {% for job in new_requests %}
+    <a class="card tap reveal" href="{{ url_for('v10.mission_brief', request_id=job['id']) }}">
+      <div class="v10-row between">
+        <span class="chip {{ 'red' if job['risk_level'] in ['HIGH','RESTRICTED'] else 'blue' }}">{{ job['service_name'] }}</span>
+        <span class="chip">{{ job['status']|replace('_',' ')|title }}</span>
+      </div>
+      <div class="card-sub" style="margin-top:8px">{{ job['description'][:110] }}{% if job['description']|length > 110 %}…{% endif %}</div>
+      <div class="v10-row wrap" style="gap:6px;margin-top:8px">
+        <span class="chip">👤 {{ job['customer_name'] }}</span>
+        {% if job['asset_type'] %}<span class="chip">🧾 {{ job['asset_type'] }}</span>{% endif %}
+        {% if job['mission_code'] %}<span class="chip purple">{{ job['mission_code'] }} · {{ job['mission_task_count'] }} tasks</span>{% endif %}
+        {% if job['budget_customer'] %}<span class="chip green">Budget ₹{{ job['budget_customer']|int }}</span>{% endif %}
+        {% if job['scheduled_at'] %}<span class="chip amber">🗓 {{ (job['scheduled_at'] or '')[:16] }}</span>{% endif %}
+      </div>
+      <span class="btn ghost sm" style="margin-top:10px">Open mission brief →</span>
+    </a>
+    {% else %}
+    <div class="empty-state"><div class="ico">📭</div><strong>No open requests right now</strong>
+    <p>Keep your skills and availability updated so SmartServe can match you faster.</p></div>
+    {% endfor %}
+  </div>
+
+  <div class="v10-section" id="active">
+    <div class="v10-section-head"><h2>🛠️ Active jobs</h2></div>
+    {% for job in active_jobs %}
+    <a class="card tap reveal" href="{{ url_for('v10.booking_detail', request_id=job['id']) }}">
+      <div class="v10-row between">
+        <span class="card-title" style="font-size:14.5px">{{ job['service_name'] }}</span>
+        <span class="chip {{ 'amber' if job['status'] in ['ACCEPTED','ARRIVED'] else 'blue' }}">{{ job['status']|replace('_',' ')|title }}</span>
+      </div>
+      <div class="card-sub">{{ job['customer_name'] }} · {{ job['asset_type'] or 'no asset' }}</div>
+      <div class="v10-row wrap" style="gap:6px;margin-top:8px">
+        <span class="chip">📞 {{ job['customer_phone'] }}</span>
+        {% if job['mission_code'] %}<span class="chip purple">{{ job['mission_code'] }}</span>{% endif %}
+        {% if job['agreed_amount'] %}<span class="chip green">₹{{ job['agreed_amount']|int }}</span>{% endif %}
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <span class="btn ghost sm">Workspace →</span>
+        <span class="btn ghost sm" onclick="event.preventDefault();event.stopPropagation();v10OpenChat('{{ job['id'] }}', '{{ job['customer_name']|e }}')">💬 Chat</span>
+      </div>
+    </a>
+    {% else %}
+    <div class="empty-state"><div class="ico">🧰</div><strong>No active jobs</strong>
+    <p>Accept a request to start a job workspace with tasks, parts and evidence.</p></div>
+    {% endfor %}
+  </div>
+
+  <div class="v10-section">
+    <div class="v10-section-head"><h2>📋 Recent history</h2>
+      <a class="muted tiny" href="{{ url_for('v10.skill_passport_page') }}">Skills →</a></div>
+    {% for job in completed_jobs %}
+    <div class="card reveal v10-row between" style="padding:12px">
+      <div><strong class="small">{{ job['service_name'] }}</strong>
+      <span class="muted tiny" style="display:block">{{ (job['completed_at'] or '')[:16] }}{% if job['mission_code'] %} · {{ job['mission_code'] }}{% endif %}</span></div>
+      <a class="btn ghost xs" href="{{ url_for('v10.booking_detail', request_id=job['id']) }}">View</a>
+    </div>
+    {% else %}
+    <p class="muted small">No completed jobs yet.</p>
+    {% endfor %}
+  </div>
+
+  <div class="hero-card reveal">
+    <div class="glow"></div>
+    <h3 style="margin:0 0 4px">Grow your skill passport</h3>
+    <p>Verified skills and certifications unlock higher-risk, higher-value services in SmartServe V10.</p>
+    <div class="hero-actions">
+      <a class="btn on-dark solid" href="{{ url_for('v10.skill_passport_page') }}">Open Skill Passport</a>
+      <a class="btn on-dark" href="{{ url_for('provider_profile_edit') }}">Edit provider profile</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

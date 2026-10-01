@@ -1,0 +1,378 @@
+{% extends "v10/base.html" %}
+{% block title %}Booking #{{ r['id'] }} · SmartServe{% endblock %}
+{% block header_class %}wide{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.bookings_page') }}" aria-label="Back to bookings">←</a>
+<div>
+  <div class="v10-header-title">{{ r['service_name'] }}</div>
+  <span class="muted tiny">Booking #{{ r['id'] }}{% if r['mission_code'] %} · {{ r['mission_code'] }}{% endif %}</span>
+</div>
+{% endblock %}
+{% block body_attrs %}data-request-id="{{ r['id'] }}"{% endblock %}
+{% block content %}
+<div class="v10-frame wide page-enter">
+  <div class="wide-grid">
+    <div>
+      <!-- Lifecycle rail -->
+      <div class="card reveal">
+        <div class="v10-row between">
+          <div class="v10-eyebrow">Service lifecycle</div>
+          <span class="chip" data-live-counter>lifecycle</span>
+        </div>
+        {% set stage = (r['lifecycle_stage'] or 'MATCH')|upper %}
+        {% set stage_index = lifecycle.index(stage) if stage in lifecycle else 4 %}
+        <div class="lifecycle-rail" style="margin-top:8px">
+          {% for s in lifecycle %}
+          <span class="stage {{ 'done' if loop.index0 < stage_index else ('current' if loop.index0 == stage_index) }}">{{ lifecycle_labels[s] }}</span>
+          {% if not loop.last %}<span class="arrow">→</span>{% endif %}
+          {% endfor %}
+        </div>
+        <div class="progress-track" style="margin-top:6px"><div class="progress-fill" style="width:{{ ((stage_index + 1) / lifecycle|length * 100)|round|int }}%"></div></div>
+      </div>
+
+      <!-- Status + actions -->
+      <div class="card reveal d1" style="margin-top:12px">
+        <div class="v10-row between">
+          <div>
+            <div class="card-title">Status: {{ r['status']|replace('_',' ')|title }}</div>
+            <div class="card-sub">Payment: {{ r['payment_status']|title }}{% if r['agreed_amount'] %} · ₹{{ '%.0f'|format(r['agreed_amount']) }} approved{% endif %}</div>
+          </div>
+          <span class="chip {{ 'green' if r['status'] == 'COMPLETED' else 'blue' }}">{{ r['status']|replace('_',' ')|title }}</span>
+        </div>
+
+        {% if is_customer and r['status'] in ['PENDING','SEARCHING','OFFERED','SCHEDULED','ASSIGNED'] %}
+        <div class="btn-row" style="margin-top:12px">
+          <a class="btn primary" href="{{ url_for('searching', request_id=r['id']) }}">🧭 Find providers</a>
+        </div>
+        {% endif %}
+
+        <div class="btn-row" style="margin-top:12px">
+          {% if is_customer or is_provider %}
+          <button class="btn ghost sm" type="button" onclick="v10OpenChat({{ r['id'] }})">💬 Chat</button>
+          {% endif %}
+          {% if is_provider and r['customer_phone'] %}
+          <a class="btn ghost sm" href="tel:{{ r['customer_phone'] }}">☎ Call customer</a>
+          {% elif is_customer and r['provider_phone'] %}
+          <a class="btn ghost sm" href="tel:{{ r['provider_phone'] }}">☎ Call provider</a>
+          {% endif %}
+          {% if r['status'] in ['ACCEPTED','ARRIVED','IN_PROGRESS','AWAITING_VERIFICATION','AWAITING_PAYMENT'] %}
+          <a class="btn ghost sm" href="{{ url_for('live_service', request_id=r['id']) }}">📍 Live tracking</a>
+          {% endif %}
+          <a class="btn ghost sm" href="{{ url_for('v10.blackbox_page', request_id=r['id']) }}">📦 Black box</a>
+          {% if r['status'] == 'COMPLETED' %}
+          <a class="btn ghost sm" href="{{ url_for('v10.certificate_page', request_id=r['id']) }}">📜 Certificate</a>
+          {% endif %}
+          {% if r['asset_row_id'] %}
+          <a class="btn ghost sm" href="{{ url_for('v10.passport_page', asset_id=r['asset_row_id']) }}">🧾 Passport</a>
+          {% endif %}
+        </div>
+        {% if is_customer and r['status'] == 'AWAITING_PAYMENT' %}
+        <button class="btn success block" style="margin-top:12px" onclick="paySmartServe({{ r['id'] }}, this)">💳 Pay ₹{{ '%.0f'|format(r['agreed_amount'] or r['final_amount'] or 0) }} &amp; complete</button>
+        {% endif %}
+      </div>
+
+      <!-- Provider -->
+      {% if r['provider_name'] %}
+      <div class="card reveal d2 provider-card" style="margin-top:12px">
+        <div class="provider-avatar">
+          {% set photo = media_url(r['provider_photo']) %}
+          {% if photo %}<img src="{{ photo }}" alt="">{% else %}{{ r['provider_name'][:1]|upper }}{% endif %}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="card-title">{{ r['provider_name'] }}</div>
+          <div class="card-sub">★ {{ '%.1f'|format(r['provider_rating'] or 0) }} · {{ r['provider_experience'] or 0 }} yrs{% if r['ekyc_status'] == 'VERIFIED' %} · ✓ KYC verified{% endif %}</div>
+        </div>
+        {% if r['provider_id'] %}
+        <a class="btn ghost sm" href="{{ url_for('provider_profile', provider_id=r['provider_id']) }}">Profile</a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Mission tasks -->
+      {% if mission_tasks %}
+      <div class="card reveal d2" style="margin-top:12px">
+        <div class="v10-row between">
+          <h3 style="margin:0">🧭 {{ r['mission_title'] or 'Mission' }}</h3>
+          <span class="chip blue">{{ mission_progress.completed }}/{{ mission_progress.total }}</span>
+        </div>
+        <div class="progress-track" style="margin:8px 0 12px"><div class="progress-fill" style="width:{{ mission_progress.percent }}%"></div></div>
+        <div class="task-list">
+          {% for task in mission_tasks %}
+          <div class="task-item {{ task['status']|lower }}">
+            <span class="marker">{{ '✓' if task['status'] == 'COMPLETED' else ('●' if task['status'] == 'IN_PROGRESS' else ('⏳' if task['status'] == 'BLOCKED' else '○')) }}</span>
+            <div class="t-main">
+              <div class="t-title">{{ task['task_order'] }}. {{ task['title'] }}</div>
+              <div class="muted tiny">{{ task['service_name'] }}{% if task['provider_name'] %} · {{ task['provider_name'] }}{% endif %} · {{ task['status']|replace('_',' ')|title }}</div>
+            </div>
+            {% if task['request_id'] %}
+            <a class="btn ghost xs" href="{{ url_for('v10.booking_detail', request_id=task['request_id']) }}">Open</a>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Parts -->
+      <div class="card reveal d3" style="margin-top:12px">
+        <div class="v10-row between"><h3 style="margin:0">🔩 Parts</h3>
+          <span class="chip amber">est. ₹{{ '%.0f'|format(parts_summary.estimated_cost) }}</span></div>
+        {% if parts %}
+        <div style="margin-top:8px">
+          {% for part in parts %}
+          <div class="part-row">
+            <div class="p-top">
+              <span class="p-name">{{ part['part_name'] }}</span>
+              <span class="chip {{ 'green' if part['approval_status'] == 'APPROVED' else ('red' if part['approval_status'] == 'DECLINED' else 'amber') }}">
+                {{ part['approval_status']|replace('_',' ')|title }}
+              </span>
+            </div>
+            <div class="p-meta">
+              ×{{ part['quantity'] }} · {{ part['compatibility'] or 'compatibility to confirm' }} ·
+              {% if part['unit_price_min'] %}₹{{ part['unit_price_min']|int }}{% if part['unit_price_max'] %}–₹{{ part['unit_price_max']|int }}{% endif %}{% else %}price on inspection{% endif %} ·
+              {{ part['supply_mode']|title }} supplies
+            </div>
+            <div class="p-meta">{{ part['availability_note'] or 'Estimated availability' }}
+              {% if part['data_source'] == 'ESTIMATE' %}<span class="chip">estimated / simulated</span>{% elif part['data_source'] == 'PROVIDER' %}<span class="chip teal">provider data</span>{% endif %}
+            </div>
+            {% if is_customer and part['approval_status'] == 'PENDING' %}
+            <div class="btn-row" style="margin-top:6px">
+              <button class="btn success xs" type="button" onclick="v10ApprovePart({{ part['id'] }},'APPROVE')">Approve</button>
+              <button class="btn danger xs" type="button" onclick="v10ApprovePart({{ part['id'] }},'DECLINE')">Decline</button>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted small" style="margin:6px 0 0">No parts identified yet.</p>
+        {% endif %}
+        {% if is_provider %}
+        <button class="btn ghost sm" type="button" style="margin-top:10px" onclick="v10Sheet('addPartSheet')">＋ Add part used</button>
+        {% endif %}
+      </div>
+
+      <!-- Second opinion -->
+      <div class="card reveal d3" style="margin-top:12px">
+        <div class="v10-row between"><h3 style="margin:0">🧠 Second opinion</h3>
+          {% if opinion %}<span class="chip {{ 'blue' if opinion.get('confidence') and opinion['confidence'] >= 0.5 else 'amber' }}">
+            {{ (opinion.get('data_source') or 'PENDING')|title }}</span>{% endif %}</div>
+        {% if opinion and opinion.get('explanation') %}
+        <p class="muted small" style="margin:8px 0">{{ opinion['explanation'][:260] }}{% if opinion['explanation']|length > 260 %}…{% endif %}</p>
+        <p class="muted tiny"><strong>Recommended next step:</strong> {{ opinion['recommended_step'] }}</p>
+        <p class="muted tiny">Confidence: {{ ((opinion.get('confidence') or 0) * 100)|round|int }}% · {{ opinion.get('disclaimer') or '' }}</p>
+        {% else %}
+        <p class="muted small" style="margin:6px 0 10px">Get neutral decision support before approving an expensive repair. SmartServe never accuses your provider.</p>
+        {% endif %}
+        {% if is_customer %}
+        <a class="btn soft sm" href="{{ url_for('v10.second_opinion_page', request_id=r['id']) }}">Request second opinion →</a>
+        {% endif %}
+      </div>
+
+      <!-- Recovery -->
+      {% if is_customer and r['status'] == 'COMPLETED' %}
+      <div class="card reveal d4" style="margin-top:12px">
+        <h3 style="margin:0 0 4px">♻️ Problem returned?</h3>
+        <p class="muted small">SmartServe keeps monitoring this service. If the same problem comes back, open a recovery case and we retrieve the original diagnosis, parts, evidence and warranty automatically.</p>
+        <button class="btn danger sm" type="button" onclick="v10Sheet('recoverySheet')">Report the same problem</button>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Side column -->
+    <div>
+      <div class="card reveal d2">
+        <div class="v10-eyebrow">Asset</div>
+        {% if r['asset_uid'] %}
+        <div class="card-title" style="margin-top:6px">{{ r['asset_type'] }}</div>
+        <div class="card-sub">{{ r['brand'] or '' }} {{ r['model'] or '' }}</div>
+        <div class="tiny muted" style="margin-top:4px;font-family:ui-monospace,monospace">{{ r['asset_uid'] }}</div>
+        <a class="btn ghost sm" style="margin-top:8px" href="{{ url_for('v10.passport_page', asset_id=r['asset_row_id']) }}">Open Service Passport</a>
+        {% else %}
+        <p class="muted small" style="margin:6px 0">No asset linked to this booking.</p>
+        {% endif %}
+        {% if r['asset_id'] is none and is_customer %}
+        <button class="btn ghost sm" type="button" style="margin-top:8px" onclick="v10Sheet('createAssetForBooking')">Link an asset</button>
+        {% endif %}
+      </div>
+
+      {% if warranty %}
+      <div class="card reveal d3" style="margin-top:12px">
+        <div class="v10-eyebrow">Warranty</div>
+        <div class="card-title" style="margin-top:6px">🛡️ {{ warranty['status']|title }}</div>
+        <div class="card-sub">{{ warranty['warranty_days'] }} days · until {{ (warranty['warranty_until'] or '')[:10] }}</div>
+        <p class="muted tiny" style="margin-top:6px">{{ warranty['terms'] }}</p>
+      </div>
+      {% endif %}
+
+      {% if outcome %}
+      <div class="card reveal d3" style="margin-top:12px">
+        <div class="v10-eyebrow">Outcome monitoring</div>
+        <div class="card-title" style="margin-top:6px">{{ outcome['outcome_status']|replace('_',' ')|title }}</div>
+        <div class="card-sub">Warranty {{ outcome['warranty_status']|title }} · monitored until {{ (outcome['monitored_until'] or '')[:10] }}</div>
+        {% if outcome['recurrence_count'] %}<span class="chip amber">{{ outcome['recurrence_count'] }} recurrence report(s)</span>{% endif %}
+      </div>
+      {% endif %}
+
+      <div class="card reveal d4" style="margin-top:12px">
+        <div class="v10-eyebrow">Evidence</div>
+        {% set req = timeline['request'] %}
+        <div class="v10-row wrap" style="gap:8px;margin-top:8px">
+          {% if req['image_path'] %}<img class="evidence-thumb" src="{{ media_url(req['image_path']) or '' }}" alt="Customer problem photo" loading="lazy">{% endif %}
+          {% for path in (req['completion_proof_paths']|from_json) %}
+          {% if path is string %}<img class="evidence-thumb" src="{{ url_for('service_proof', request_id=r['id'], filename=path.split('/')[-1]) }}" alt="After-service proof" loading="lazy">{% endif %}
+          {% endfor %}
+          {% for path in (req['before_evidence_paths']|from_json) %}
+          {% if path is string %}<img class="evidence-thumb" src="{{ media_url(path) or '' }}" alt="Before-service evidence" loading="lazy">{% endif %}
+          {% endfor %}
+        </div>
+        <div class="v10-row wrap" style="gap:6px;margin-top:8px">
+          <span class="chip {{ 'green' if timeline['after_verified'] else 'amber' }}">{{ 'After evidence ✓' if timeline['after_verified'] else 'After evidence pending' }}</span>
+          <span class="chip {{ 'green' if timeline['customer_confirmed'] else 'amber' }}">{{ 'Customer verified ✓' if timeline['customer_confirmed'] else 'Verification pending' }}</span>
+        </div>
+        <a class="btn ghost sm" style="margin-top:10px" href="{{ url_for('v10.blackbox_page', request_id=r['id']) }}">See the whole record</a>
+      </div>
+
+      {% if certificate %}
+      <a class="card tap reveal d5" style="margin-top:12px" href="{{ url_for('v10.certificate_page', request_id=r['id']) }}">
+        <div class="v10-eyebrow">Service Certificate</div>
+        <div class="card-title" style="margin-top:6px">{{ certificate['certificate_code'] }}</div>
+        <div class="card-sub">Issued {{ (certificate['issued_at'] or '')[:10] }} · ₹{{ '%.0f'|format(certificate['final_amount'] or 0) }}</div>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Add part sheet (provider) -->
+<div class="sheet" id="addPartSheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div>
+  <h3>Add part</h3>
+  <form id="addPartForm" class="v10-stack-sm">
+    <label class="field">Part name<input class="input" name="part_name" required></label>
+    <div class="field-grid two">
+      <label class="field">Quantity<input class="input" name="quantity" type="number" min="1" value="1"></label>
+      <label class="field">Compatibility<input class="input" name="compatibility" placeholder="Model / variant"></label>
+      <label class="field">Price min (₹)<input class="input" name="unit_price_min" type="number" min="0" step="1"></label>
+      <label class="field">Price max (₹)<input class="input" name="unit_price_max" type="number" min="0" step="1"></label>
+    </div>
+    <label class="field">Warranty on part (days)<input class="input" name="warranty_days" type="number" min="0" value="30"></label>
+    <label class="field" style="flex-direction:row;align-items:center;gap:8px;display:flex">
+      <input type="checkbox" name="requires_approval" value="1" checked> Require customer approval before use
+    </label>
+    <div class="btn-row">
+      <button class="btn primary" type="submit">Add to black box</button>
+      <button class="btn ghost" type="button" onclick="v10CloseSheet('addPartSheet')">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<!-- Recovery sheet -->
+<div class="sheet" id="recoverySheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div>
+  <h3>Report the same problem</h3>
+  <p class="muted">SmartServe will retrieve the original diagnosis, parts, evidence and warranty, then show your options.</p>
+  <form id="recoveryForm" class="v10-stack-sm">
+    <label class="field">What is happening now?
+      <textarea class="input" name="problem" required placeholder="Example: The same cooling problem is back and the unit is making the same noise."></textarea>
+    </label>
+    <label class="field">Severity
+      <select class="input" name="severity">
+        <option value="LOW">Mild — can wait</option>
+        <option value="MEDIUM" selected>Moderate — needs attention</option>
+        <option value="HIGH">Severe / safety concern</option>
+      </select>
+    </label>
+    <label class="field">Photos (optional)<input class="input" type="file" name="media" accept="image/*" multiple></label>
+    <div class="btn-row">
+      <button class="btn danger" type="submit">Open recovery case</button>
+      <button class="btn ghost" type="button" onclick="v10CloseSheet('recoverySheet')">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<!-- Link asset sheet -->
+<div class="sheet" id="createAssetForBooking" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div>
+  <h3>Link a Service Passport</h3>
+  <p class="muted">Create the asset and SmartServe will attach this booking to it.</p>
+  <form id="linkAssetForm" class="v10-stack-sm">
+    <label class="field">Asset type<input class="input" name="asset_type" required placeholder="e.g. Air conditioner"></label>
+    <div class="field-grid two">
+      <label class="field">Brand<input class="input" name="brand"></label>
+      <label class="field">Model<input class="input" name="model"></label>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" type="submit">Create &amp; link</button>
+      <button class="btn ghost" type="button" onclick="v10CloseSheet('createAssetForBooking')">Cancel</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var v10RequestId = {{ r['id'] }};
+
+async function v10ApprovePart(partId, decision) {
+  try {
+    await v10Api('/api/parts/' + partId + '/approve', { method: 'POST', body: { decision: decision } });
+    v10Toast(decision === 'APPROVE' ? 'Part approved.' : 'Part declined.', 'success');
+    setTimeout(function () { location.reload(); }, 600);
+  } catch (error) { v10Toast(error.message, 'error'); }
+}
+
+var addPartForm = document.getElementById('addPartForm');
+if (addPartForm) addPartForm.addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = event.target.querySelector('button[type="submit"]');
+  var restore = v10Loading(button, 'Saving…');
+  var data = new FormData(event.target);
+  var body = {
+    part_name: data.get('part_name'), quantity: data.get('quantity'),
+    compatibility: data.get('compatibility'), unit_price_min: data.get('unit_price_min'),
+    unit_price_max: data.get('unit_price_max'), warranty_days: data.get('warranty_days'),
+    requires_approval: data.get('requires_approval') ? 1 : 0, data_source: 'PROVIDER', status: 'PROPOSED'
+  };
+  try {
+    await v10Api('/api/service/' + v10RequestId + '/parts', { method: 'POST', body: body });
+    v10Toast('Part added to the service record.', 'success');
+    setTimeout(function () { location.reload(); }, 700);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+
+var recoveryForm = document.getElementById('recoveryForm');
+if (recoveryForm) recoveryForm.addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = event.target.querySelector('button[type="submit"]');
+  var restore = v10Loading(button, 'Opening case…');
+  var data = new FormData(event.target);
+  var body = new FormData();
+  body.append('problem', data.get('problem'));
+  body.append('severity', data.get('severity'));
+  Array.prototype.slice.call(event.target.querySelector('input[type=file]').files).slice(0, 4).forEach(function (file) {
+    body.append('media', file);
+  });
+  try {
+    var result = await v10Api('/api/service/' + v10RequestId + '/recovery', { method: 'POST', body: body });
+    v10Toast('Recovery case ' + result.case_code + ' opened (' + result.warranty_status + ' warranty).', 'success');
+    setTimeout(function () { location.href = result.redirect; }, 800);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+
+var linkAssetForm = document.getElementById('linkAssetForm');
+if (linkAssetForm) linkAssetForm.addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = event.target.querySelector('button[type="submit"]');
+  var restore = v10Loading(button, 'Creating…');
+  var data = new FormData(event.target);
+  try {
+    var created = await v10Api('/api/assets', { method: 'POST', body: {
+      asset_type: data.get('asset_type'), brand: data.get('brand'), model: data.get('model')
+    }});
+    v10Toast('Service Passport created.', 'success');
+    setTimeout(function () { location.href = created.passport_url; }, 700);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+</script>
+{% endblock %}

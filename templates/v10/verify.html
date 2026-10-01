@@ -1,0 +1,109 @@
+{% extends "v10/base.html" %}
+{% block title %}Verification centre · SmartServe{% endblock %}
+{% block content %}
+<div class="v10-frame">
+  <h1 class="reveal">Verification centre</h1>
+  <p class="muted reveal">Verified contact details are what make SmartServe's safety tools, arrival codes and recovery calls work.</p>
+
+  <div class="card reveal d1" style="margin-top:12px">
+    <div class="v10-row between">
+      <div><strong>Email</strong><span class="muted small" style="display:block">{{ user['email'] }}</span></div>
+      <span class="chip {{ 'green' if user['email_verified'] else 'amber' }}">{{ '✓ Verified' if user['email_verified'] else 'Not verified' }}</span>
+    </div>
+    {% if not user['email_verified'] %}
+    <div id="emailFallback" class="v10-stack-sm" style="margin-top:10px"></div>
+    <button class="btn primary sm" type="button" id="sendEmailBtn" style="margin-top:10px">✉️ Send verification email</button>
+    <p class="muted tiny" style="margin-top:8px">
+      {% if email_configured %}The link expires in 30 minutes and can be used once.{% else %}SMTP is not configured on this deployment — SmartServe will show a secure link instead of failing.{% endif %}
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="card reveal d2" style="margin-top:12px">
+    <div class="v10-row between">
+      <div><strong>Phone number</strong><span class="muted small" style="display:block">{{ user['phone'] or 'Not set' }}</span></div>
+      <span class="chip {{ 'green' if user['phone_verified'] else 'amber' }}">{{ '✓ Verified' if user['phone_verified'] else 'Not verified' }}</span>
+    </div>
+
+    <label class="field" style="margin-top:10px">Phone number
+      <input class="input" id="phoneInput" inputmode="tel" value="{{ user['phone'] or '' }}" placeholder="10-digit mobile number">
+    </label>
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn ghost sm" type="button" id="savePhoneBtn">Save number</button>
+      <button class="btn primary sm" type="button" id="sendOtpBtn">📱 Send code</button>
+    </div>
+
+    <div id="otpBox" hidden style="margin-top:12px">
+      <label class="field">6-digit code<input class="input" id="otpInput" inputmode="numeric" maxlength="6" placeholder="••••••"></label>
+      <div id="devOtp" class="alert-strip warn" hidden style="margin-top:8px">
+        <span class="ico">🧪</span>
+        <span><strong>Development OTP mode</strong><span class="muted" style="display:block">SMS delivery is disabled. Code: <strong id="devOtpCode"></strong></span></span>
+      </div>
+      <button class="btn success sm" type="button" id="confirmOtpBtn" style="margin-top:8px">✓ Verify number</button>
+    </div>
+    <p class="muted tiny" style="margin-top:8px">
+      {% if dev_otp %}DEVELOPMENT OTP MODE is enabled (SMARTSERVE_DEV_OTP=1). It must stay disabled in production.
+      {% else %}SMS delivery uses your configured SMS provider. Without provider credentials SmartServe will not fake a verification.{% endif %}
+    </p>
+  </div>
+
+  <div class="card reveal d3" style="margin-top:12px">
+    <h3 style="margin:0 0 6px">Why this matters</h3>
+    <ul class="muted small" style="margin:0;padding-left:18px">
+      <li>Warranty and recovery records are tied to a verified contact.</li>
+      <li>SOS alerts and trusted-contact notifications need a verified phone.</li>
+      <li>Providers only see your number after they accept your job.</li>
+    </ul>
+    <a class="btn ghost sm" style="margin-top:10px" href="{{ url_for('v10.profile_page') }}">Back to profile</a>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('sendEmailBtn')?.addEventListener('click', async function () {
+  var restore = v10Loading(this, 'Sending…');
+  try {
+    var data = await v10Api('/api/verify-email/send', { method: 'POST', body: {} });
+    v10Toast(data.message, data.fallback ? 'warn' : 'success');
+    if (data.fallback_link) {
+      document.getElementById('emailFallback').innerHTML =
+        '<div class="alert-strip info"><span class="ico">🔗</span><span class="muted">Open this one-time link to verify:<br>' +
+        '<a href="' + data.fallback_link + '" style="word-break:break-all;color:var(--v10-blue)">' + data.fallback_link + '</a></span></div>';
+    }
+  } catch (error) { v10Toast(error.message, 'error'); }
+  finally { restore(); }
+});
+
+document.getElementById('savePhoneBtn')?.addEventListener('click', async function () {
+  var restore = v10Loading(this, 'Saving…');
+  try {
+    var data = await v10Api('/api/profile', { method: 'POST', body: { phone: document.getElementById('phoneInput').value } });
+    v10Toast(data.message || 'Phone number saved.', 'success');
+  } catch (error) { v10Toast(error.message, 'error'); }
+  finally { restore(); }
+});
+
+document.getElementById('sendOtpBtn')?.addEventListener('click', async function () {
+  var restore = v10Loading(this, 'Sending…');
+  try {
+    var data = await v10Api('/api/verify-phone/send', { method: 'POST', body: { phone: document.getElementById('phoneInput').value } });
+    document.getElementById('otpBox').hidden = false;
+    v10Toast(data.message, data.dev_code || data.sent ? 'success' : 'warn');
+    if (data.dev_code) {
+      document.getElementById('devOtp').hidden = false;
+      document.getElementById('devOtpCode').textContent = data.dev_code;
+    }
+  } catch (error) { v10Toast(error.message, 'error'); }
+  finally { restore(); }
+});
+
+document.getElementById('confirmOtpBtn')?.addEventListener('click', async function () {
+  var restore = v10Loading(this, 'Verifying…');
+  try {
+    var data = await v10Api('/api/verify-phone/confirm', { method: 'POST', body: { code: document.getElementById('otpInput').value } });
+    v10Toast(data.message, 'success');
+    setTimeout(function () { location.reload(); }, 700);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+</script>
+{% endblock %}

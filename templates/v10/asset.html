@@ -1,0 +1,198 @@
+{% extends "v10/base.html" %}
+{% block title %}{{ asset['asset_type'] }} passport · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.passports_page') }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">{{ asset['nickname'] or asset['asset_type'] }}</div><span class="muted tiny">Service Passport</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <section class="passport-hero reveal">
+    <div class="v10-row between">
+      <span class="v10-eyebrow" style="color:rgba(255,255,255,.85)">SmartServe Service Passport</span>
+      {% if asset['data_source'] == 'DEMO' %}<span class="chip" style="background:rgba(255,255,255,.2);color:#fff">DEMO DATA</span>{% endif %}
+    </div>
+    <h1 style="margin:8px 0 4px">{{ asset['asset_type'] }}</h1>
+    <div style="color:rgba(255,255,255,.9)">{{ asset['brand'] or '' }} {{ asset['model'] or '' }}{% if asset['nickname'] %} · {{ asset['nickname'] }}{% endif %}</div>
+    <div class="v10-row wrap" style="gap:8px;margin-top:10px">
+      <span class="uid">{{ asset['asset_uid'] }}</span>
+      <span class="chip" style="background:rgba(255,255,255,.18);color:#fff">🛡️ Warranty {{ passport.warranty.status|title }}</span>
+      {% if asset['serial_number'] %}<span class="chip" style="background:rgba(255,255,255,.18);color:#fff">S/N {{ asset['serial_number'] }}</span>{% endif %}
+    </div>
+    <div class="health">
+      <div class="health-ring" style="--pct:{{ passport.health_score }}%"><span>{{ passport.health_score }}%</span></div>
+      <div>
+        <strong>Asset health</strong>
+        <div style="color:rgba(255,255,255,.85);font-size:12.5px">
+          {{ passport.history|length }} service record(s) · {{ passport.parts.history|length }} part(s) replaced
+        </div>
+        {% if asset['health_note'] %}<div class="tiny" style="color:rgba(255,255,255,.85);margin-top:3px">{{ asset['health_note'] }}</div>{% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- Actions -->
+  <div class="btn-row reveal d1" style="margin-top:12px">
+    <a class="btn primary sm" href="{{ url_for('v10.search_page', q=asset['asset_type']) }}">🛠️ Book a service</a>
+    <a class="btn ghost sm" href="{{ url_for('v10.passport_print', asset_id=asset['id']) }}" target="_blank" rel="noopener">🖨️ Print</a>
+    <button class="btn ghost sm" type="button" onclick="v10Sheet('editAssetSheet')">✏️ Edit</button>
+  </div>
+
+  <!-- QR -->
+  <div class="card reveal d1" style="margin-top:12px">
+    <div class="v10-row between"><h3 style="margin:0">🔗 Asset QR</h3><span class="chip {{ 'green' if qr and qr['status'] == 'ACTIVE' else 'amber' }}">{{ (qr['status'] if qr else 'NONE')|title }}</span></div>
+    <div class="qr-box qr-frame" style="margin-top:10px">
+      <img src="{{ url_for('v10.api_asset_qr_png', asset_id=asset['id']) }}" alt="QR code for {{ asset['asset_type'] }}" loading="lazy">
+      <div class="qr-token">{{ qr_url }}</div>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <a class="btn soft sm" href="{{ url_for('v10.api_asset_qr', asset_id=asset['id'], download=1) }}">⬇️ Download QR</a>
+      <button class="btn ghost sm" type="button" onclick="window.print()">🖨️ Print QR</button>
+      <button class="btn ghost sm" type="button" onclick="v10Copy('{{ qr_url }}','Passport link')">📋 Copy link</button>
+      <button class="btn danger sm" type="button" onclick="v10RotateQr({{ asset['id'] }})">♻️ Regenerate</button>
+    </div>
+    <p class="muted tiny" style="margin-top:8px">The QR contains only a secure random token. Scanning it always opens the current passport — it stays valid after every new service. Private contact details and history are never stored in the code.</p>
+  </div>
+
+  <!-- Timeline -->
+  <div class="card reveal d2" style="margin-top:12px">
+    <div class="v10-row between"><h3 style="margin:0">📜 Service timeline</h3><span class="chip">{{ passport.history|length }} records</span></div>
+    <div class="timeline" style="margin-top:14px">
+      {% for item in passport.timeline[:20] %}
+      <div class="timeline-item {{ 'warn' if item.kind == 'note' else '' }}">
+        <div class="t-head">
+          <span class="t-title">{{ item.title }}</span>
+          <span class="t-time">{{ (item.date or '')[:10] }}</span>
+        </div>
+        <div class="t-body">
+          {% if item.problem %}<div><strong>Problem:</strong> {{ item.problem[:180] }}</div>{% endif %}
+          {% if item.diagnosis %}<div><strong>Diagnosis:</strong> {{ item.diagnosis[:180] }}</div>{% endif %}
+          {% if item.work %}<div><strong>Work:</strong> {{ item.work[:180] }}</div>{% endif %}
+          {% if item.amount %}<div><strong>Amount:</strong> ₹{{ '%.0f'|format(item.amount) }}</div>{% endif %}
+        </div>
+        <div class="t-actions">
+          {% if item.request_id %}<a class="btn ghost xs" href="{{ url_for('v10.blackbox_page', request_id=item.request_id) }}">Black box</a>{% endif %}
+          {% if item.certificate_id %}<a class="btn ghost xs" href="{{ url_for('v10.certificate_page', request_id=item.request_id) }}">Certificate</a>{% endif %}
+          {% if item.data_source == 'DEMO' %}<span class="chip">DEMO</span>{% endif %}
+        </div>
+      </div>
+      {% else %}
+      <p class="muted small">No services recorded yet. Book a service and this timeline updates automatically.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Parts history -->
+  <div class="card reveal d3" style="margin-top:12px">
+    <h3 style="margin:0">🔩 Parts history</h3>
+    {% if passport.parts.recorded %}
+      {% for part in passport.parts.recorded %}
+      <div class="part-row">
+        <div class="p-top"><span class="p-name">{{ part['part_name'] }}</span>
+          <span class="chip {{ 'green' if part['status'] in ['USED','PROVIDED'] else 'amber' }}">{{ part['status']|title }}</span></div>
+        <div class="p-meta">×{{ part['quantity'] }} · {{ part['compatibility'] or '' }} · {{ (part['created_at'] or '')[:10] }}
+          {% if part['warranty_days'] %} · {{ part['warranty_days'] }}-day part warranty{% endif %}</div>
+      </div>
+      {% endfor %}
+    {% elif passport.parts.history %}
+      {% for part in passport.parts.history %}
+      <div class="part-row"><div class="p-top"><span class="p-name">{{ part.part_name if part.part_name is defined else part }}</span></div></div>
+      {% endfor %}
+    {% else %}
+      <p class="muted small" style="margin:6px 0 0">No parts replaced on this asset yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Warranty + maintenance -->
+  <div class="card reveal d3" style="margin-top:12px">
+    <h3 style="margin:0 0 6px">🛡️ Warranty &amp; care plan</h3>
+    <div class="cert-line"><span>Status</span><span>{{ passport.warranty.status|title }}</span></div>
+    <div class="cert-line"><span>Valid until</span><span>{{ passport.warranty.until or 'Not recorded' }}</span></div>
+    <div class="cert-line"><span>Warranty provider</span><span>{{ asset['warranty_provider'] or asset['brand'] or 'Manufacturer' }}</span></div>
+    <div style="margin-top:12px">
+      <strong class="small">Upcoming maintenance</strong>
+      {% for plan in passport.maintenance %}
+      <div class="part-row">
+        <div class="p-top"><span class="p-name">{{ plan['title'] }}</span>
+          <span class="chip {{ 'green' if plan['status'] == 'COMPLETED' else 'amber' }}">{{ plan['due_date'] or plan['status'] }}</span></div>
+        <div class="p-meta">{{ plan['description'] }}</div>
+        {% if plan['status'] == 'UPCOMING' %}
+        <button class="btn ghost xs" type="button" style="justify-self:start;margin-top:6px"
+                onclick="v10CompleteMaintenance({{ asset['id'] }}, {{ plan['id'] }}, this)">Mark as done</button>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="muted small">No maintenance scheduled.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Certificates -->
+  <div class="card reveal d4" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">📜 Service certificates</h3>
+    {% for certificate in passport.certificates %}
+    <a class="v10-row between" style="padding:9px 0;border-bottom:1px solid var(--v10-line)"
+       href="{{ url_for('v10.certificate_page', request_id=certificate['request_id']) }}">
+      <span><strong class="small cert-code">{{ certificate['certificate_code'] }}</strong>
+      <span class="muted tiny" style="display:block">{{ certificate['service_name'] }} · {{ (certificate['issued_at'] or '')[:10] }}</span></span>
+      <span class="chip green">₹{{ '%.0f'|format(certificate['final_amount'] or 0) }}</span>
+    </a>
+    {% else %}
+    <p class="muted small" style="margin:0">Certificates are issued automatically when a service completes and payment is verified.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="sheet" id="editAssetSheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div>
+  <h3>Edit passport details</h3>
+  <form id="editAssetForm" class="v10-stack-sm">
+    <div class="field-grid two">
+      <label class="field">Nickname<input class="input" name="nickname" value="{{ asset['nickname'] or '' }}"></label>
+      <label class="field">Location<input class="input" name="location_label" value="{{ asset['location_label'] or '' }}"></label>
+      <label class="field">Brand<input class="input" name="brand" value="{{ asset['brand'] or '' }}"></label>
+      <label class="field">Model<input class="input" name="model" value="{{ asset['model'] or '' }}"></label>
+      <label class="field">Serial number<input class="input" name="serial_number" value="{{ asset['serial_number'] or '' }}"></label>
+      <label class="field">Warranty ends<input class="input" type="date" name="warranty_end" value="{{ (asset['warranty_end'] or '')[:10] }}"></label>
+    </div>
+    <label class="field">Notes<input class="input" name="notes" value="{{ asset['notes'] or '' }}"></label>
+    <div class="btn-row">
+      <button class="btn primary" type="submit">Save changes</button>
+      <button class="btn ghost" type="button" onclick="v10CloseSheet('editAssetSheet')">Cancel</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var assetId = {{ asset['id'] }};
+async function v10RotateQr(id) {
+  if (!confirm('Regenerate the QR code? The old sticker will stop working immediately.')) return;
+  try {
+    var data = await v10Api('/api/assets/' + id + '/qr', { method: 'POST', body: { rotate: true } });
+    v10Toast('New QR generated. Print and replace the old sticker.', 'success');
+    setTimeout(function () { location.reload(); }, 800);
+  } catch (error) { v10Toast(error.message, 'error'); }
+}
+async function v10CompleteMaintenance(assetId, planId, button) {
+  var restore = v10Loading(button, 'Saving…');
+  try {
+    await v10Api('/api/assets/' + assetId + '/maintenance/' + planId, { method: 'POST', body: { status: 'COMPLETED' } });
+    v10Toast('Maintenance marked complete — next service scheduled.', 'success');
+    setTimeout(function () { location.reload(); }, 700);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+}
+document.getElementById('editAssetForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = event.target.querySelector('button[type="submit"]');
+  var restore = v10Loading(button, 'Saving…');
+  var data = new FormData(event.target);
+  var body = {};
+  data.forEach(function (value, key) { body[key] = value; });
+  try {
+    await v10Api('/api/assets/' + assetId, { method: 'PUT', body: body });
+    v10Toast('Passport updated.', 'success');
+    setTimeout(function () { location.reload(); }, 600);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+</script>
+{% endblock %}

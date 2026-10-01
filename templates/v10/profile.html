@@ -1,0 +1,224 @@
+{% extends "v10/base.html" %}
+{% block title %}My profile · SmartServe{% endblock %}
+{% block content %}
+<div class="v10-frame">
+  <!-- Identity -->
+  <div class="card reveal">
+    <div class="v10-row" style="gap:14px">
+      <div class="provider-avatar" id="profilePhoto" style="width:72px;height:72px;border-radius:22px;font-size:26px">
+        {% set photo = media_url(profile['profile_photo_path']) %}
+        {% if photo %}<img src="{{ photo }}" alt="Profile photo">{% else %}{{ (profile['name'] or 'U')[:1]|upper }}{% endif %}
+      </div>
+      <div style="flex:1;min-width:0">
+        <h1 style="font-size:20px;margin:0">{{ profile['name'] }}</h1>
+        <div class="muted small">{{ profile['email'] }}</div>
+        <div class="muted small">{{ profile['phone'] or 'No phone number' }}</div>
+        <div class="v10-row wrap" style="gap:6px;margin-top:7px">
+          <span class="chip {{ 'green' if profile['email_verified'] else 'amber' }}">{{ '✓ Email verified' if profile['email_verified'] else 'Email not verified' }}</span>
+          <span class="chip {{ 'green' if profile['phone_verified'] else 'amber' }}">{{ '✓ Phone verified' if profile['phone_verified'] else 'Phone not verified' }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:12px">
+      <label class="btn ghost sm" style="cursor:pointer">📷 Change photo<input type="file" id="photoInput" accept="image/*" hidden></label>
+      {% if profile['profile_photo_path'] %}<button class="btn danger sm" type="button" onclick="v10RemovePhoto()">Remove</button>{% endif %}
+      <a class="btn soft sm" href="{{ url_for('v10.verify_center') }}">✅ Verification centre</a>
+    </div>
+  </div>
+
+  <!-- Personal info -->
+  <div class="card reveal d1" style="margin-top:12px">
+    <h3 style="margin:0 0 10px">Personal information</h3>
+    <form id="personalForm" class="field-grid two">
+      <label class="field full">Full name<input class="input" name="name" value="{{ profile['name'] or '' }}"></label>
+      <label class="field">Email<input class="input" name="email" type="email" value="{{ profile['email'] or '' }}"></label>
+      <label class="field">Phone<input class="input" name="phone" inputmode="tel" value="{{ profile['phone'] or '' }}"></label>
+      <label class="field">Preferred language
+        <select class="input" name="preferred_language">
+          {% for code, label in [('en','English'),('hi','हिन्दी (Hindi)'),('kn','ಕನ್ನಡ (Kannada)'),('ta','தமிழ் (Tamil)'),('te','తెలుగు (Telugu)'),('mr','मराठी (Marathi)')] %}
+          <option value="{{ code }}" {% if profile['preferred_language'] == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">City<input class="input" name="city" value="{{ profile['city'] or '' }}"></label>
+      <label class="field full">Address line<input class="input" name="address_line" value="{{ profile['address_line'] or '' }}" placeholder="Flat, street, landmark"></label>
+      <div class="full"><button class="btn primary" type="submit">Save changes</button>
+      <span class="muted tiny" style="display:block;margin-top:6px">Changing your email or phone number requires re-verification.</span></div>
+    </form>
+  </div>
+
+  <!-- Addresses -->
+  <div class="card reveal d1" style="margin-top:12px">
+    <div class="v10-row between"><h3 style="margin:0">Saved locations</h3>
+      <button class="btn ghost xs" type="button" onclick="v10Sheet('addressSheet')">＋ Add</button></div>
+    <div style="margin-top:8px">
+      {% for address in addresses %}
+      <div class="v10-row between" style="padding:9px 0;border-bottom:1px solid var(--v10-line)">
+        <div><strong class="small">{{ address['label'] or 'Address' }}{% if address['is_default'] %} · default{% endif %}</strong>
+        <span class="muted tiny" style="display:block">{{ address['address_text'] }}{% if address['pincode'] %} · {{ address['pincode'] }}{% endif %}</span></div>
+        <button class="btn danger xs" type="button" onclick="v10DeleteAddress({{ address['id'] }})">Delete</button>
+      </div>
+      {% else %}
+      <p class="muted small" style="margin:0">No saved locations yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Notification preferences -->
+  <div class="card reveal d2" style="margin-top:12px">
+    <h3 style="margin:0 0 10px">Notifications</h3>
+    <form id="prefsForm" class="v10-stack-sm">
+      {% set pref_keys = [('email_enabled','Email updates'), ('sms_enabled','SMS updates'), ('push_enabled','Push notifications'), ('whatsapp_enabled','WhatsApp alerts'), ('mission_updates','Mission progress updates'), ('warranty_alerts','Warranty alerts'), ('marketing','Offers and news')] %}
+      {% for key, label in pref_keys %}
+      <label class="v10-row" style="gap:10px;font-size:13.5px">
+        <input type="checkbox" name="{{ key }}" {% if (prefs and prefs[key]) or (not prefs and key != 'marketing') %}checked{% endif %} style="width:18px;height:18px">
+        {{ label }}
+      </label>
+      {% endfor %}
+      <button class="btn primary sm" type="submit" style="justify-self:start">Save preferences</button>
+    </form>
+  </div>
+
+  <!-- Lifecycle data -->
+  <div class="v10-section">
+    <div class="v10-section-head"><h2>My service data</h2></div>
+    <div class="v10-grid-2">
+      <a class="card tap" href="{{ url_for('v10.passports_page') }}"><strong>🧾 Service Passports</strong><span class="muted tiny" style="display:block">{{ assets|length }} asset(s)</span></a>
+      <a class="card tap" href="{{ url_for('v10.bookings_page') }}"><strong>📅 Bookings</strong><span class="muted tiny" style="display:block">{{ bookings|length }} recent</span></a>
+      <a class="card tap" href="{{ url_for('v10.missions_page') }}"><strong>🧭 Missions</strong><span class="muted tiny" style="display:block">multi-trade problems</span></a>
+      <a class="card tap" href="{{ url_for('v10.recovery_page') }}"><strong>♻️ Recovery</strong><span class="muted tiny" style="display:block">{{ recovery_cases|length }} case(s)</span></a>
+    </div>
+
+    {% if warranties %}
+    <div class="card" style="margin-top:12px">
+      <h3 style="margin:0 0 6px">🛡️ Active warranties</h3>
+      {% for warranty in warranties %}
+      <div class="cert-line"><span>{{ warranty['service_name'] }}</span><span>until {{ (warranty['warranty_until'] or '')[:10] }}</span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if favorites %}
+    <div class="card" style="margin-top:12px">
+      <h3 style="margin:0 0 8px">⭐ Favourite providers</h3>
+      <div class="v10-scroll-x">
+        {% for favorite in favorites %}
+        <a class="card tap" style="width:150px" href="{{ url_for('provider_profile', provider_id=favorite['provider_id']) }}">
+          <div class="provider-avatar" style="width:42px;height:42px;border-radius:13px">
+            {% set fav_photo = media_url(favorite['profile_photo_path']) %}
+            {% if fav_photo %}<img src="{{ fav_photo }}" alt="">{% else %}{{ favorite['name'][:1]|upper }}{% endif %}
+          </div>
+          <strong class="small" style="display:block;margin-top:7px">{{ favorite['name'] }}</strong>
+          <span class="muted tiny">★ {{ '%.1f'|format(favorite['rating'] or 0) }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if reviews %}
+    <div class="card" style="margin-top:12px">
+      <h3 style="margin:0 0 6px">⭐ My reviews</h3>
+      {% for review in reviews %}
+      <div class="cert-line"><span>{{ review['service_name'] }} · {{ '★' * review['rating'] }}</span><span>{{ (review['created_at'] or '')[:10] }}</span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Safety + security -->
+  <div class="card reveal d3" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">🛡️ Safety &amp; security</h3>
+    <div class="cert-line"><span>Trusted contact</span><span>{{ trusted[0]['name'] + ' · ' + trusted[0]['phone'] if trusted else 'Not set' }}</span></div>
+    <p class="muted tiny">Trusted contacts and SOS live in the Safety &amp; Tools centre, unchanged from SmartServe V9.</p>
+    <div class="btn-row">
+      <a class="btn ghost sm" href="{{ url_for('marketplace_features') }}">Open safety centre</a>
+      <a class="btn ghost sm" href="{{ url_for('logout') }}">Sign out</a>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="addressSheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div>
+  <h3>Add a saved location</h3>
+  <form id="addressForm" class="v10-stack-sm">
+    <label class="field">Label<input class="input" name="label" placeholder="Home / Office"></label>
+    <label class="field">Address<textarea class="input" name="address_text" required></textarea></label>
+    <label class="field">PIN code<input class="input" name="pincode" inputmode="numeric" maxlength="6"></label>
+    <label class="v10-row" style="gap:8px"><input type="checkbox" name="is_default" value="1"> Make this my default location</label>
+    <div class="btn-row">
+      <button class="btn primary" type="submit">Save location</button>
+      <button class="btn ghost" type="button" onclick="v10CloseSheet('addressSheet')">Cancel</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('photoInput').addEventListener('change', async function () {
+  if (!this.files.length) return;
+  var body = new FormData();
+  body.append('media', this.files[0]);
+  try {
+    var data = await v10Api('/api/profile/photo', { method: 'POST', body: body });
+    v10Toast('Profile photo updated.', 'success');
+    setTimeout(function () { location.reload(); }, 600);
+  } catch (error) { v10Toast(error.message, 'error'); }
+});
+async function v10RemovePhoto() {
+  if (!confirm('Remove your profile photo?')) return;
+  var body = new FormData();
+  body.append('remove', '1');
+  try {
+    await v10Api('/api/profile/photo', { method: 'POST', body: body });
+    v10Toast('Profile photo removed.', 'success');
+    setTimeout(function () { location.reload(); }, 600);
+  } catch (error) { v10Toast(error.message, 'error'); }
+}
+document.getElementById('personalForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = event.target.querySelector('button[type="submit"]');
+  var restore = v10Loading(button, 'Saving…');
+  var data = new FormData(event.target);
+  var body = {};
+  data.forEach(function (value, key) { body[key] = value; });
+  try {
+    var result = await v10Api('/api/profile', { method: 'PUT', body: body });
+    v10Toast(result.message || 'Profile updated.', 'success');
+    setTimeout(function () { location.reload(); }, 800);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+document.getElementById('prefsForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var body = {};
+  ['email_enabled','sms_enabled','push_enabled','whatsapp_enabled','mission_updates','warranty_alerts','marketing'].forEach(function (key) {
+    body[key] = event.target.querySelector('[name="' + key + '"]').checked ? 1 : 0;
+  });
+  try {
+    await v10Api('/api/preferences', { method: 'POST', body: body });
+    v10Toast('Preferences saved.', 'success');
+  } catch (error) { v10Toast(error.message, 'error'); }
+});
+document.getElementById('addressForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var data = new FormData(event.target);
+  var body = {
+    label: data.get('label'), address_text: data.get('address_text'),
+    pincode: data.get('pincode'), is_default: data.get('is_default') ? 1 : 0
+  };
+  try {
+    var result = await v10Api('/api/addresses', { method: 'POST', body: body });
+    v10Toast('Location saved.', 'success');
+    setTimeout(function () { location.reload(); }, 600);
+  } catch (error) { v10Toast(error.message, 'error'); }
+});
+async function v10DeleteAddress(id) {
+  if (!confirm('Delete this saved location?')) return;
+  try {
+    await v10Api('/api/addresses/' + id, { method: 'DELETE' });
+    v10Toast('Location removed.', 'success');
+    setTimeout(function () { location.reload(); }, 500);
+  } catch (error) { v10Toast(error.message, 'error'); }
+}
+</script>
+{% endblock %}

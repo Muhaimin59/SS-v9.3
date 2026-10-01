@@ -1,0 +1,143 @@
+{% extends "v10/base.html" %}
+{% block title %}V10 operations console · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('home') }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">V10 operations</div><span class="muted tiny">Missions · recovery · skills · catalogue</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <div class="stat-row reveal">
+    <div class="stat"><b>{{ counts['missions_active'] }}</b><span>Active missions</span></div>
+    <div class="stat"><b>{{ counts['assets'] }}</b><span>Passports</span></div>
+    <div class="stat"><b>{{ counts['certificates'] }}</b><span>Certificates</span></div>
+    <div class="stat"><b>{{ counts['recovery_open'] }}</b><span>Open recovery</span></div>
+  </div>
+  <div class="stat-row reveal d1" style="margin-top:10px">
+    <div class="stat"><b>{{ counts['second_opinions'] }}</b><span>Second opinions</span></div>
+    <div class="stat"><b>{{ counts['skills_pending'] }}</b><span>Skills to verify</span></div>
+    <div class="stat"><b>{{ counts['certifications_pending'] }}</b><span>Certs to review</span></div>
+    <div class="stat"><b>{{ counts['parts'] }}</b><span>Parts logged</span></div>
+  </div>
+
+  <div class="card reveal d1" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">🧭 Missions</h3>
+    {% for mission in missions %}
+    <div class="admin-row">
+      <div><strong class="small">{{ mission['mission_code'] }} · {{ mission['title'] }}</strong>
+        <span class="muted tiny" style="display:block">{{ mission['customer_name'] }} · {{ mission['asset_type'] or 'no asset' }} · {{ mission['tasks_done'] }}/{{ mission['task_count'] }} tasks</span></div>
+      <span class="chip {{ 'green' if mission['status'] == 'COMPLETED' else ('red' if mission['risk_level'] in ['HIGH','RESTRICTED'] else 'amber') }}">{{ mission['status']|replace('_',' ')|title }}</span>
+    </div>
+    {% else %}<p class="muted small" style="margin:0">No missions recorded.</p>{% endfor %}
+  </div>
+
+  <div class="card reveal d2" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">♻️ Recovery cases</h3>
+    {% for case in cases %}
+    <div class="admin-row">
+      <div><strong class="small">{{ case['case_code'] }} · {{ case['customer_name'] }}</strong>
+        <span class="muted tiny" style="display:block">{{ case['service_name'] or 'Service' }} · {{ case['reported_problem'][:80] }}</span></div>
+      <div class="v10-row" style="gap:6px">
+        <span class="chip {{ 'green' if case['warranty_status'] == 'ACTIVE' else 'amber' }}">{{ case['warranty_status']|title }} warranty</span>
+        <span class="chip">{{ case['status']|title }}</span>
+      </div>
+    </div>
+    {% else %}<p class="muted small" style="margin:0">No recovery cases.</p>{% endfor %}
+  </div>
+
+  <div class="card reveal d2" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">🎓 Skill verification queue</h3>
+    {% for skill in skills %}
+    <div class="admin-row">
+      <div><strong class="small">{{ skill['provider_name'] }} · {{ skill['skill_name'] }}</strong>
+        <span class="muted tiny" style="display:block">{{ skill['status']|title }} · level {{ skill['level'] or 1 }} · {{ skill['jobs_completed'] or 0 }} job(s) · requested {{ (skill['verification_requested_at'] or '')[:10] }}</span></div>
+      <div class="v10-row" style="gap:6px">
+        <button class="btn success xs" type="button" onclick="v10AdminSkill({{ skill['id'] }}, 'VERIFIED', this)">Verify</button>
+        <button class="btn ghost xs" type="button" onclick="v10AdminSkill({{ skill['id'] }}, 'SUPERVISED', this)">Restrict</button>
+        <button class="btn danger xs" type="button" onclick="v10AdminSkill({{ skill['id'] }}, 'REJECTED', this)">Reject</button>
+      </div>
+    </div>
+    {% else %}<p class="muted small" style="margin:0">Skill queue is clear.</p>{% endfor %}
+  </div>
+
+  <div class="card reveal d3" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">📜 Certifications</h3>
+    {% for cert in certifications %}
+    <div class="admin-row">
+      <div><strong class="small">{{ cert['provider_name'] }} · {{ cert['name'] }}</strong>
+        <span class="muted tiny" style="display:block">{{ cert['issuer'] or 'Issuer not given' }} · expires {{ (cert['expires_at'] or '')[:10] or '—' }}</span></div>
+      <div class="v10-row" style="gap:6px">
+        <span class="chip {{ 'green' if cert['status'] == 'VERIFIED' else 'amber' }}">{{ cert['status']|title }}</span>
+        {% if cert['status'] == 'PENDING' %}
+        <button class="btn success xs" type="button" onclick="v10AdminCert({{ cert['id'] }}, 'verify', this)">Approve</button>
+        <button class="btn danger xs" type="button" onclick="v10AdminCert({{ cert['id'] }}, 'reject', this)">Reject</button>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}<p class="muted small" style="margin:0">No certifications submitted.</p>{% endfor %}
+  </div>
+
+  <div class="card reveal d3" style="margin-top:12px">
+    <div class="v10-row between"><h3 style="margin:0">🗂️ Catalogue &amp; risk levels</h3>
+      <button class="btn ghost xs" type="button" onclick="v10Sheet('categorySheet')">＋ Category</button></div>
+    {% for category in categories %}
+    <div class="admin-row">
+      <div><strong class="small">{{ category['icon'] }} {{ category['name'] }}</strong>
+        <span class="muted tiny" style="display:block">{{ category['service_count'] }} services · {{ category['risk_level']|title }} risk · type {{ category['allowed_provider_types'] or 'any' }}</span></div>
+      <span class="chip {{ 'red' if category['risk_level'] in ['HIGH','RESTRICTED'] else 'green' }}">{{ category['risk_level']|title }}</span>
+    </div>
+    {% endfor %}
+    <p class="muted tiny">Use the V9.3 admin console for disputes, fraud signals, SOS events and payments — those controls are unchanged.</p>
+    <a class="btn ghost sm" style="margin-top:8px" href="{{ url_for('home') }}">← Back to SmartServe</a>
+  </div>
+</div>
+
+<div class="sheet" id="categorySheet" role="dialog" aria-modal="true">
+  <div class="sheet-grabber"></div><h3>Add a service category</h3>
+  <form id="categoryForm" class="v10-stack-sm">
+    <label class="field">Key (slug)<input class="input" name="key" required placeholder="e.g. solar_energy"></label>
+    <label class="field">Name<input class="input" name="name" required placeholder="Solar &amp; Energy"></label>
+    <label class="field">Icon (emoji)<input class="input" name="icon" placeholder="🔆"></label>
+    <label class="field">Description<textarea class="input" name="description"></textarea></label>
+    <label class="field">Risk level
+      <select class="input" name="risk_level"><option>LOW</option><option selected>MEDIUM</option><option>HIGH</option><option>RESTRICTED</option></select>
+    </label>
+    <label class="field">Allowed provider types
+      <select class="input" name="allowed_provider_types"><option value="any">Any verified provider</option><option value="professional">Professional only</option><option value="professional,student">Professional + supervised student</option></select>
+    </label>
+    <div class="btn-row"><button class="btn primary" type="submit">Create category</button>
+    <button class="btn ghost" type="button" onclick="v10CloseSheet('categorySheet')">Cancel</button></div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function v10AdminSkill(skillId, result, button) {
+  var restore = v10Loading(button, 'Saving…');
+  try {
+    await v10Api('/admin/v10/skill/' + skillId + '/verify', { method: 'POST', body: { result: result, method: 'ASSESSMENT' } });
+    v10Toast('Skill status updated.', 'success');
+    setTimeout(function () { location.reload(); }, 600);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+}
+async function v10AdminCert(certId, action, button) {
+  var restore = v10Loading(button, 'Saving…');
+  try {
+    await v10Api('/admin/v10/certification/' + certId + '/' + action, { method: 'POST', body: {} });
+    v10Toast('Certification ' + action + 'd.', 'success');
+    setTimeout(function () { location.reload(); }, 600);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+}
+document.getElementById('categoryForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = event.target.querySelector('button[type=submit]');
+  var restore = v10Loading(button, 'Creating…');
+  var data = new FormData(event.target); var body = {};
+  data.forEach(function (value, key) { body[key] = value; });
+  try {
+    await v10Api('/admin/v10/category', { method: 'POST', body: body });
+    v10Toast('Category created.', 'success');
+    setTimeout(function () { location.reload(); }, 600);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "v10/base.html" %}
+{% block title %}My bookings · SmartServe{% endblock %}
+{% block content %}
+<div class="v10-frame">
+  <h1 class="reveal">My bookings</h1>
+  <p class="muted reveal">Every booking keeps its full service record, evidence and warranty.</p>
+
+  <nav class="tabs" style="margin:14px 0" aria-label="Booking filters">
+    {% for key, label in [('upcoming','Upcoming'),('active','Active'),('completed','Completed'),('cancelled','Cancelled'),('recovery','Recovery')] %}
+    <a class="{{ 'active' if tab == key }}" href="{{ url_for('v10.bookings_page', tab=key) }}">{{ label }}<span class="count">{{ counts[key] }}</span></a>
+    {% endfor %}
+  </nav>
+
+  {% if bookings %}
+  <div class="v10-stack">
+    {% for r in bookings %}
+    <a class="card tap booking-card reveal" href="{{ url_for('v10.booking_detail', request_id=r['id']) }}">
+      <div class="top">
+        <span class="icon-box">{{ r['service_icon'] or '🛠️' }}</span>
+        <div style="flex:1;min-width:0">
+          <div class="card-title">{{ r['service_name'] }}</div>
+          <div class="card-sub">
+            {% if r['provider_name'] %}with {{ r['provider_name'] }}{% else %}Finding a provider…{% endif %}
+          </div>
+        </div>
+        <span class="chip {{ 'green' if r['status'] == 'COMPLETED' else ('blue' if r['status'] in ['ACCEPTED','ARRIVED','IN_PROGRESS'] else ('red' if r['status'] in ['CANCELLED','REJECTED','EXPIRED'] else 'amber')) }}">
+          {{ r['status']|replace('_',' ')|title }}
+        </span>
+      </div>
+      <div class="meta-grid">
+        <div>Booking <b>#{{ r['id'] }}</b></div>
+        {% if r['mission_code'] %}<div>Mission <b>{{ r['mission_code'] }}</b></div>{% endif %}
+        <div>Created <b>{{ (r['created_at'] or '')[:16] }}</b></div>
+        {% if r['scheduled_at'] %}<div>Scheduled <b>{{ (r['scheduled_at'] or '')[:16] }}</b></div>{% endif %}
+        {% if r['asset_type'] %}<div>Asset <b>{{ r['asset_type'] }}</b></div>{% endif %}
+        <div>Amount <b>₹{{ '%.0f'|format(r['final_amount'] or r['agreed_amount'] or 0) }}</b></div>
+      </div>
+      {% if r['case_code'] %}<span class="chip purple">♻️ Recovery {{ r['case_code'] }}</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state reveal">
+    <div class="ico">📅</div><strong>Nothing here yet</strong>
+    <p>{{ 'No recovery cases — good news.' if tab == 'recovery' else 'Book a service and it will appear here with its full lifecycle.' }}</p>
+    <a class="btn primary" href="{{ url_for('v10.categories_page') }}">Browse services</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

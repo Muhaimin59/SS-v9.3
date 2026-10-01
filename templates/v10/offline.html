@@ -1,0 +1,16 @@
+{% extends "v10/base.html" %}
+{% block title %}Offline · SmartServe{% endblock %}
+{% block content %}
+<div class="v10-frame">
+  <div class="empty-state reveal" style="margin-top:40px">
+    <div class="ico">📡</div>
+    <strong>You are offline</strong>
+    <p>SmartServe saved your most recent pages. Bookings, chats and evidence upload need a connection.</p>
+    <div class="btn-row" style="justify-content:center">
+      <button class="btn primary" type="button" onclick="location.reload()">Try again</button>
+      <a class="btn ghost" href="{{ url_for('v10.customer_home') }}">Home</a>
+    </div>
+    <p class="muted tiny" style="margin-top:14px">Your Service Passports, certificates and QR codes stay available once you reconnect — nothing is lost.</p>
+  </div>
+</div>
+{% endblock %}

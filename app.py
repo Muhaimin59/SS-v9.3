@@ -507,6 +507,19 @@ def from_json_filter(value):
 # Initialize database
 init_database()
 
+# =========================================================
+# SMARTSERVE V10 — additive lifecycle layer (blueprint)
+# =========================================================
+# The V10 modules are registered as a blueprint so every V9.3 route, workflow
+# and API stays exactly where it is. Registration is defensive: a failure here
+# can never stop the existing application from starting.
+try:
+    import v10 as smartserve_v10
+    smartserve_v10.register(app)
+    print("SmartServe V10 lifecycle layer registered.")
+except Exception as _v10_register_error:  # pragma: no cover - defensive
+    print("SMARTSERVE V10 REGISTRATION WARNING:", repr(_v10_register_error))
+
 # Customer-choice architecture: no automatic provider-offer dispatcher is started.
 
 def allowed_file(filename):
@@ -578,6 +591,13 @@ def _start_session(user):
 
 
 def _dashboard_for_role():
+    # SmartServe V10: customers and providers land on the mobile-first V10 app
+    # shell. The classic dashboards stay available from the account menu.
+    if session.get("role") in ("customer", "provider"):
+        try:
+            return redirect(url_for("v10.customer_home" if session.get("role") == "customer" else "v10.provider_home"))
+        except Exception:
+            pass
     role = session.get("role")
     if role == "admin":
         return redirect(url_for("admin_operations"))
@@ -754,6 +774,18 @@ def register():
             flash("Please choose whether you are a Customer or a Service Provider.")
             return redirect(url_for("register"))
 
+        # SmartServe V10: a phone number is compulsory for every account so that
+        # safety tools (SOS, trusted contacts), arrival codes and recovery calls
+        # always work. Verification is handled by the verification centre.
+        phone_digits = "".join(ch for ch in phone if ch.isdigit())
+        if len(phone_digits) < 10:
+            flash("A valid phone number is required — SmartServe cannot create an account without one.")
+            return redirect(url_for("register"))
+        max_digits = int(os.getenv("SMARTSERVE_PHONE_MAX_DIGITS", "15") or 15)
+        if len(phone_digits) > max_digits:
+            flash(f"Please enter a valid phone number (10–{max_digits} digits).")
+            return redirect(url_for("register"))
+
         if role == "provider" and not request.form.getlist("service_ids") and not request.form.get("skills", "").strip():
             flash("Select at least one service you offer.")
             return redirect(url_for("register"))
@@ -767,9 +799,9 @@ def register():
             cursor = connection.cursor()
 
             cursor.execute("""
-                INSERT INTO users (name, email, password, role, phone)
-                VALUES (?, ?, ?, ?, ?)
-            """, (name, email, hashed_password, role, phone or None))
+                INSERT INTO users (name, email, password, role, phone, auth_provider, email_verified, phone_verified)
+                VALUES (?, ?, ?, ?, ?, 'email', 0, 0)
+            """, (name, email, hashed_password, role, phone_digits))
 
             user_id = cursor.lastrowid
 
@@ -1291,6 +1323,14 @@ def request_service():
 
         request_id = cursor.lastrowid
 
+        # SmartServe V10 bridge: legacy bookings also take part in the connected
+        # lifecycle (mission, black box, certificate, passport, recovery).
+        try:
+            import v10.engine as _v10_engine
+            _v10_engine.attach_legacy_request_to_mission(connection, request_id, session.get("user_id"))
+        except Exception as exc:
+            print("V10 LEGACY BRIDGE WARNING:", repr(exc))
+
         # Any due repeat plan for this service rolls forward to its next visit.
         for plan in connection.execute("SELECT id, frequency FROM recurring_bookings WHERE customer_id=? AND service_id=? AND active=1 AND datetime(next_run_at) <= datetime('now','+3 day')", (session["user_id"], service_id)).fetchall():
             step = REPEAT_FREQUENCIES.get(str(plan["frequency"]).upper(), '+30 day')
@@ -1367,8 +1407,34 @@ def ai_analyze_and_create():
         from ai_service import analyze_problem
         ai_result = analyze_problem(service["name"], description, image_path)
     except Exception as exc:
+        # SmartServe V10: an AI outage must never block a booking. Fall back to
+        # the deterministic rules engine and label the result as preliminary
+        # instead of presenting it as an AI diagnosis.
         print("GEMINI API ERROR:", repr(exc))
-        return jsonify({"success": False, "message": str(exc)}), 502
+        try:
+            from v10.ai import offline_analysis
+            offline = offline_analysis(service["name"], description)
+            price_range = offline.get("estimated_price_range") or {}
+            if isinstance(price_range, dict):
+                price_text = price_range.get("label") or (
+                    f"₹{int(price_range.get('min', 0))}-₹{int(price_range.get('max', 0))}"
+                    if price_range.get("min") else "Inspection required"
+                )
+            else:
+                price_text = str(price_range or "Inspection required")
+            ai_result = {
+                "problem": offline["problem"],
+                "possible_cause": ", ".join(offline.get("possible_causes") or [])[:600] or "Needs on-site inspection.",
+                "difficulty": offline.get("difficulty") or "Medium",
+                "recommended_service": service["name"],
+                "estimated_price": price_text,
+                "safety_note": " ".join(offline.get("safety_notes") or []) or "Follow standard safety precautions.",
+                "data_source": "RULE_BASED",
+                "notice": offline.get("disclaimer"),
+            }
+        except Exception as fallback_exc:
+            print("OFFLINE ANALYSIS FALLBACK ERROR:", repr(fallback_exc))
+            return jsonify({"success": False, "message": str(exc)}), 502
 
     connection = get_db_connection()
     cur = connection.cursor()
@@ -1412,6 +1478,13 @@ def _log_event(connection, request_id, actor_user_id, event_type, message="", me
         INSERT INTO service_events(request_id,actor_user_id,event_type,message,metadata_json)
         VALUES(?,?,?,?,?)
     """,(request_id,actor_user_id,event_type,message,json.dumps(metadata or {})))
+    # SmartServe V10: mirror the event into the Service Black Box and keep the
+    # mission/lifecycle state in sync. Never allowed to break the V9.3 flow.
+    try:
+        import v10.engine as _v10_engine
+        _v10_engine.on_request_event(connection, request_id, event_type, message, actor_user_id, metadata)
+    except Exception as exc:
+        print("V10 EVENT HOOK WARNING:", repr(exc))
 
 def _quote_for_request(connection, request_id):
     row=connection.execute("""
@@ -3018,6 +3091,13 @@ def verify_payment(request_id):
         connection.execute("INSERT OR REPLACE INTO service_warranties(request_id,provider_id,warranty_days,warranty_until,terms) VALUES(?,?,7,datetime('now','+7 day'),'Workmanship warranty for the completed service; excludes new damage, misuse and unrelated faults.')",(request_id,paid_row['provider_id']))
         connection.execute("UPDATE service_requests SET warranty_days=7,warranty_until=datetime('now','+7 day') WHERE id=?",(request_id,))
         _award_provider_metrics(connection, int(paid_row['provider_id'])) if '_award_provider_metrics' in globals() else None
+    # SmartServe V10: RECORD -> MONITOR. Issues the Service Certificate, updates the
+    # Service Passport, starts outcome monitoring and closes the mission task.
+    try:
+        import v10.engine as _v10_engine
+        _v10_engine.on_request_completed(connection, request_id)
+    except Exception as exc:
+        print("V10 COMPLETION HOOK WARNING:", repr(exc))
     connection.commit()
     connection.close()
     _emit_request_update(request_id)

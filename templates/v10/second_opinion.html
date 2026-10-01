@@ -1,0 +1,112 @@
+{% extends "v10/base.html" %}
+{% block title %}Second opinion · SmartServe{% endblock %}
+{% block header_left %}
+<a class="icon-btn" href="{{ url_for('v10.booking_detail', request_id=r['id']) }}" aria-label="Back">←</a>
+<div><div class="v10-header-title">Second opinion</div><span class="muted tiny">{{ r['service_name'] }} · #{{ r['id'] }}</span></div>
+{% endblock %}
+{% block content %}
+<div class="v10-frame page-enter">
+  <div class="alert-strip info reveal">
+    <span class="ico">🧠</span>
+    <span><strong>Neutral decision support</strong>
+    <span class="muted" style="display:block">SmartServe never accuses a professional. This tool helps you understand whether an extra diagnostic step is worth taking before an expensive repair.</span></span>
+  </div>
+
+  <div class="card reveal d1" style="margin-top:12px">
+    <div class="v10-eyebrow">Current proposal</div>
+    <div class="cert-line" style="margin-top:8px"><span>Repair proposed</span><span>{{ (opinion and opinion.get('proposed_repair')) or r['provider_diagnosis'] or 'Not recorded yet' }}</span></div>
+    <div class="cert-line"><span>Provider estimate</span><span>₹{{ '%.0f'|format((opinion.get('quoted_amount') if opinion else 0) or r['agreed_amount'] or r['final_amount'] or 0) }}</span></div>
+    <div class="cert-line"><span>Asset</span><span>{{ r['asset_type'] or 'Not linked' }}{% if r['brand'] %} · {{ r['brand'] }} {{ r['model'] or '' }}{% endif %}</span></div>
+    <div class="cert-line"><span>Your description</span><span>{{ r['description'][:120] }}</span></div>
+  </div>
+
+  {% if opinion %}
+  <div class="card reveal d1" style="margin-top:12px">
+    <div class="v10-row between">
+      <h3 style="margin:0">SmartServe analysis</h3>
+      <span class="chip {{ 'blue' if opinion.get('confidence', 0) >= 0.5 else 'amber' }}">
+        {{ (opinion.get('data_source') or 'RULE_BASED')|replace('_',' ')|title }} · {{ ((opinion.get('confidence') or 0) * 100)|round|int }}%
+      </span>
+    </div>
+    <p class="muted small" style="margin:10px 0"><strong>Possible explanation:</strong> {{ opinion.get('explanation') }}</p>
+    {% set evidence = opinion.get('supporting_evidence') or [] %}
+    {% if evidence %}
+    <strong class="small">Evidence supporting the proposal</strong>
+    <ul class="muted small" style="margin:4px 0 10px;padding-left:18px">{% for item in evidence %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% set required = opinion.get('information_required') or [] %}
+    {% if required %}
+    <strong class="small">Information still required</strong>
+    <ul class="muted small" style="margin:4px 0 10px;padding-left:18px">{% for item in required %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% set alternatives = opinion.get('alternatives') or [] %}
+    {% if alternatives %}
+    <strong class="small">Alternative possibilities</strong>
+    <ul class="muted small" style="margin:4px 0 10px;padding-left:18px">{% for item in alternatives %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+    <div class="alert-strip {{ 'warn' if (opinion.get('confidence') or 0) < 0.5 else 'good' }}" style="margin-top:6px">
+      <span class="ico">{{ '⚠️' if (opinion.get('confidence') or 0) < 0.5 else '✅' }}</span>
+      <span><strong>Recommended next step</strong><span class="muted" style="display:block">{{ opinion.get('recommended_step') }}</span></span>
+    </div>
+    {% set safety = opinion.get('safety_notes') or [] %}
+    {% if safety %}<div class="alert-strip danger" style="margin-top:10px"><span class="ico">⚠️</span><span class="muted">{{ safety|join(' ') }}</span></div>{% endif %}
+    <p class="muted tiny" style="margin-top:10px">{{ opinion.get('disclaimer') }}</p>
+    <div class="btn-row" style="margin-top:10px">
+      <a class="btn ghost sm" href="{{ url_for('v10.blackbox_page', request_id=r['id']) }}">📦 Review the evidence</a>
+      {% if r['asset_id'] %}<a class="btn ghost sm" href="{{ url_for('v10.passport_page', asset_id=r['asset_id']) }}">🧾 Asset history</a>{% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="card reveal d1" style="margin-top:12px">
+    <h3 style="margin:0 0 6px">Request the second opinion</h3>
+    <p class="muted small">SmartServe analyses the asset history, previous repairs, parts, your description, the provider diagnosis and the quoted amount.</p>
+    <form id="opinionForm" class="v10-stack-sm">
+      <label class="field">Repair being proposed
+        <input class="input" name="proposed_repair" data-required data-required-message="Describe the proposed repair."
+               value="{{ r['provider_diagnosis'] or '' }}" placeholder="Example: Replace AC compressor">
+      </label>
+      <label class="field">Quoted amount (₹)
+        <input class="input" name="quoted_amount" type="number" min="0" step="50" value="{{ (r['agreed_amount'] or '')|string if r['agreed_amount'] else '' }}" placeholder="e.g. 8000">
+      </label>
+      <label class="field">What would you like SmartServe to check?
+        <textarea class="input" name="question" placeholder="Example: Is a compressor replacement really needed, or could something cheaper be tested first?"></textarea>
+      </label>
+      <div class="form-note">{% if ai_live %}Gemini is configured — this analysis uses the live AI model.{% else %}Gemini is not configured on this deployment, so SmartServe will use its offline rules engine and label it clearly.{% endif %}</div>
+      <button class="btn primary" type="submit">Get SmartServe second opinion</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="card reveal d2" style="margin-top:12px">
+    <h3 style="margin:0 0 8px">History used for this analysis</h3>
+    {% if history %}
+    {% for item in history %}
+    <div class="cert-line"><span>{{ item['service_name'] or 'Service' }} · {{ (item['service_date'] or '')[:10] }}</span><span>{{ item['problem'][:60] if item['problem'] else '' }}</span></div>
+    {% endfor %}
+    {% else %}
+    <p class="muted small" style="margin:0">No earlier service history for this asset — SmartServe will say so explicitly.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var opinionForm = document.getElementById('opinionForm');
+if (opinionForm) opinionForm.addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = event.target.querySelector('button[type="submit"]');
+  var restore = v10Loading(button, 'Analysing…');
+  var data = new FormData(event.target);
+  try {
+    await v10Api('/api/second-opinion', { method: 'POST', body: {
+      request_id: {{ r['id'] }},
+      proposed_repair: data.get('proposed_repair'),
+      quoted_amount: data.get('quoted_amount'),
+      question: data.get('question')
+    }});
+    v10Toast('Second opinion ready.', 'success');
+    setTimeout(function () { location.reload(); }, 700);
+  } catch (error) { v10Toast(error.message, 'error'); restore(); }
+});
+</script>
+{% endblock %}

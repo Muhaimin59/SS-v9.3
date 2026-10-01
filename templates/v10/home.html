@@ -1,0 +1,315 @@
+{% extends "v10/base.html" %}
+{% block title %}SmartServe · Your service home{% endblock %}
+{% block content %}
+<div class="v10-frame">
+
+  <!-- Greeting -->
+  <div class="v10-row between reveal">
+    <div>
+      <div class="v10-eyebrow">{{ 'Morning' if 5 <= (now_hour or 10) < 12 else 'Welcome back' }}</div>
+      <h1 style="margin:2px 0 0">Hello, {{ (user['name'] or 'there').split(' ')[0] }} 👋</h1>
+      <p class="muted" style="margin:2px 0 0">Your service lifecycle, in one place.</p>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="v10-section reveal d1">
+    <form class="search-bar" action="{{ url_for('v10.search_page') }}" method="get" role="search">
+      <div class="search-input">
+        <span class="ico" aria-hidden="true">🔍</span>
+        <input class="input" type="search" name="q" placeholder="What service do you need today?" aria-label="Search services, problems or providers" data-live-search autocomplete="off">
+        <button class="voice-btn" type="button" data-voice-target="v10HomeSearch" aria-label="Voice search">🎙️</button>
+      </div>
+      <button class="btn primary" type="submit">Go</button>
+    </form>
+    <input type="hidden" id="v10HomeSearch">
+    <div id="searchSuggestions" role="listbox" aria-label="Search suggestions"></div>
+  </div>
+
+  <!-- AI SmartServe card -->
+  <section class="hero-card reveal d2">
+    <div class="glow"></div>
+    <span class="chip" style="background:rgba(255,255,255,.18);color:#fff">🧠 AI SmartServe</span>
+    <h2 style="margin:12px 0 6px">Describe a problem — SmartServe builds the mission</h2>
+    <p>Describe it, scan an appliance QR, or upload a photo. SmartServe understands the problem, identifies the asset, plans the tasks and finds eligible professionals.</p>
+    <div class="hero-actions">
+      <button class="btn on-dark solid" type="button" onclick="v10Sheet('aiDescribeSheet')">✍️ Describe a problem</button>
+      <button class="btn on-dark" type="button" onclick="v10Sheet('scanSheet')">📷 Scan appliance QR</button>
+      <a class="btn on-dark" href="{{ url_for('v10.categories_page') }}">🧰 Browse services</a>
+    </div>
+  </section>
+
+  <!-- Alerts: warranties + recovery -->
+  {% if warranties or recovery_open %}
+  <section class="v10-section reveal d3 v10-stack-sm">
+    {% if recovery_open %}
+    <a class="alert-strip danger" href="{{ url_for('v10.recovery_page') }}">
+      <span class="ico">♻️</span>
+      <span><strong>{{ recovery_open }} open recovery case{{ 's' if recovery_open > 1 }}</strong>
+      <span class="muted" style="display:block">SmartServe is monitoring a reported repeat problem. Review the options.</span></span>
+    </a>
+    {% endif %}
+    {% for w in warranties %}
+    <a class="alert-strip warn" href="{{ url_for('v10.booking_detail', request_id=w['id']) }}">
+      <span class="ico">🛡️</span>
+      <span><strong>{{ w['service_name'] }} warranty active</strong>
+      <span class="muted" style="display:block">{{ w['days_left'] }} days remaining · valid until {{ w['warranty_until'] }}</span></span>
+    </a>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <!-- Active missions -->
+  {% if missions %}
+  <section class="v10-section reveal d3">
+    <div class="v10-section-head"><h2>🧭 Active missions</h2><a href="{{ url_for('v10.missions_page') }}">See all</a></div>
+    <div class="v10-stack-sm">
+      {% for mission in missions %}
+      <a class="card tap booking-card" href="{{ url_for('v10.mission_detail', mission_id=mission['id']) }}">
+        <div class="top">
+          <span class="icon-box">🧭</span>
+          <div style="flex:1;min-width:0">
+            <div class="card-title">{{ mission['title'] }}</div>
+            <div class="card-sub">{{ mission['mission_code'] }}{% if mission['asset_type'] %} · {{ mission['asset_type'] }}{% endif %}</div>
+          </div>
+          <span class="chip blue">{{ mission['tasks_done'] }}/{{ mission['task_count'] }} tasks</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" style="width:{{ ((mission['tasks_done'] / mission['task_count'] * 100) if mission['task_count'] else 0)|round|int }}%"></div></div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Active bookings -->
+  {% if active_requests %}
+  <section class="v10-section reveal d4">
+    <div class="v10-section-head"><h2>⚡ Live bookings</h2><a href="{{ url_for('v10.bookings_page', tab='active') }}">All bookings</a></div>
+    <div class="v10-stack-sm">
+      {% for r in active_requests %}
+      <a class="card tap booking-card" href="{{ url_for('v10.booking_detail', request_id=r['id']) }}">
+        <div class="top">
+          <span class="icon-box">{{ r['service_icon'] or '🛠️' }}</span>
+          <div style="flex:1;min-width:0">
+            <div class="card-title">{{ r['service_name'] }}</div>
+            <div class="card-sub">{{ r['provider_name'] or 'Finding a provider…' }}</div>
+          </div>
+          <span class="chip {{ 'green' if r['status'] in ['ACCEPTED','ARRIVED','IN_PROGRESS'] else 'amber' }}">{{ r['status']|replace('_',' ')|title }}</span>
+        </div>
+        <div class="meta-grid">
+          <div>Booking <b>#{{ r['id'] }}</b></div>
+          {% if r['mission_code'] %}<div>Mission <b>{{ r['mission_code'] }}</b></div>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Service passports -->
+  <section class="v10-section reveal d4">
+    <div class="v10-section-head"><h2>🧾 Service Passports</h2><a href="{{ url_for('v10.passports_page') }}">Manage</a></div>
+    {% if assets %}
+    <div class="v10-scroll-x">
+      {% for asset in assets %}
+      {% set warranty = asset['warranty'] if asset['warranty'] is defined else {'status':'UNKNOWN'} %}
+      <a class="card tap" style="width:210px" href="{{ url_for('v10.passport_page', asset_id=asset['id']) }}">
+        <div class="v10-row between">
+          <span class="chip {{ 'green' if warranty.status == 'ACTIVE' else ('amber' if warranty.status == 'EXPIRING' else 'red') }}">🛡️ {{ warranty.status|title }}</span>
+          {% if asset['data_source'] == 'DEMO' %}<span class="chip">DEMO</span>{% endif %}
+        </div>
+        <div class="card-title" style="margin-top:9px">{{ asset['asset_type'] }}</div>
+        <div class="card-sub">{{ asset['brand'] or '' }} {{ asset['model'] or '' }}</div>
+        <div class="v10-row" style="margin-top:9px;gap:8px">
+          <div class="progress-track" style="flex:1"><div class="progress-fill {{ 'green' if asset['health_score'] >= 70 else '' }}" style="width:{{ asset['health_score'] }}%"></div></div>
+          <span class="tiny" style="font-weight:800">{{ asset['health_score'] }}%</span>
+        </div>
+        <div class="tiny muted" style="margin-top:6px">{{ asset['asset_uid'] }}</div>
+      </a>
+      {% endfor %}
+      <a class="card tap" style="width:150px;display:grid;place-items:center;text-align:center" href="{{ url_for('v10.passports_page') }}#add">
+        <div><div style="font-size:24px">＋</div><strong class="small">Add asset</strong></div>
+      </a>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="ico">🧾</div><strong>No Service Passports yet</strong>
+      <p>Register an appliance and SmartServe keeps its full history, warranty and QR code forever.</p>
+      <a class="btn primary" href="{{ url_for('v10.passports_page') }}">Create your first passport</a>
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- Categories -->
+  <section class="v10-section reveal d5">
+    <div class="v10-section-head"><h2>🧰 Browse categories</h2><a href="{{ url_for('v10.categories_page') }}">All</a></div>
+    <div class="v10-scroll-x">
+      {% for category in categories %}
+      <a class="cat-chip" href="{{ url_for('v10.category_page', key=category['key']) }}"><span class="ico">{{ category['icon'] }}</span>{{ category['name'].split('&')[0]|trim }}</a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Popular services -->
+  <section class="v10-section reveal d5">
+    <div class="v10-section-head"><h2>⭐ Popular services</h2><a href="{{ url_for('v10.categories_page') }}">More</a></div>
+    <div class="v10-grid-2">
+      {% for service in services[:8] %}
+      <a class="svc-tile" href="{{ url_for('v10.booking_page', service_ref=service['id']) }}">
+        <span class="ico">{{ service['icon'] or '🛠️' }}</span>
+        <strong>{{ service['name'] }}</strong>
+        <span class="meta">{{ service['estimated_duration'] or 'On-site visit' }}{% if service['min_price_hint'] %} · ₹{{ service['min_price_hint']|int }}+{% endif %}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Recommended providers -->
+  <section class="v10-section reveal d5">
+    <div class="v10-section-head"><h2>👷 Recommended providers</h2><a href="{{ url_for('v10.search_page', q='') }}">Browse services</a></div>
+    <div class="v10-stack-sm">
+      {% for provider in recommended %}
+      <a class="card tap provider-card" href="{{ url_for('provider_profile', provider_id=provider['provider_id']) }}">
+        <div class="provider-avatar">
+          {% set photo = media_url(provider['profile_photo_path']) %}
+          {% if photo %}<img src="{{ photo }}" alt="">{% else %}{{ provider['name'][:1]|upper }}{% endif %}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="card-title">{{ provider['name'] }}</div>
+          <div class="card-sub">{{ provider['skills'] or 'Service professional' }}</div>
+          <div class="v10-row" style="gap:6px;margin-top:5px">
+            <span class="chip amber">★ {{ '%.1f'|format(provider['rating'] or 0) }}</span>
+            <span class="chip">{{ provider['experience'] or 0 }} yrs</span>
+            {% if provider['provider_type'] == 'student' %}<span class="chip purple">Student</span>{% endif %}
+            {% if provider['ekyc_status'] == 'VERIFIED' %}<span class="chip green">✓ KYC</span>{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Recent services -->
+  {% if recent %}
+  <section class="v10-section reveal d5">
+    <div class="v10-section-head"><h2>🕘 Recent services</h2><a href="{{ url_for('v10.bookings_page', tab='completed') }}">History</a></div>
+    <div class="v10-stack-sm">
+      {% for item in recent %}
+      <a class="card tap v10-row between" href="{{ url_for('v10.booking_detail', request_id=item['id']) }}">
+        <span class="v10-row" style="gap:10px"><span style="font-size:19px">{{ item['service_icon'] or '🛠️' }}</span>
+        <span><strong class="small">{{ item['service_name'] }}</strong><span class="muted" style="display:block">{{ item['created_at'] }}</span></span></span>
+        <span class="chip {{ 'green' if item['status'] == 'COMPLETED' else '' }}">{{ item['status']|replace('_',' ')|title }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Lifecycle explainer -->
+  <section class="v10-section">
+    <div class="card">
+      <div class="v10-eyebrow">The SmartServe lifecycle</div>
+      <h3 style="margin:6px 0 4px">From problem to recovery — never a dead end</h3>
+      <div class="lifecycle-rail" style="margin-top:8px">
+        {% for stage in lifecycle %}
+        <span class="stage {{ 'done' if loop.index0 < 4 }}">{{ lifecycle_labels[stage] }}</span>
+        {% if not loop.last %}<span class="arrow">→</span>{% endif %}
+        {% endfor %}
+      </div>
+      <p class="muted" style="margin:8px 0 0">Every booking you make carries its evidence, warranty and outcome monitoring inside its Service Passport.</p>
+    </div>
+  </section>
+</div>
+
+<!-- Describe-a-problem sheet -->
+<div class="sheet" id="aiDescribeSheet" role="dialog" aria-modal="true" aria-labelledby="aiSheetTitle">
+  <div class="sheet-grabber"></div>
+  <h3 id="aiSheetTitle">Describe the problem</h3>
+  <p class="muted">SmartServe understands the problem, lists likely services and plans the mission tasks.</p>
+  <form id="aiDescribeForm" class="v10-stack-sm">
+    <label class="field">Service (optional)
+      <select class="input" name="service_name" id="aiService">
+        <option value="">Let SmartServe decide</option>
+        {% for service in services %}<option value="{{ service['name'] }}">{{ service['name'] }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="field">What is happening?
+      <textarea class="input" name="problem" id="aiProblem" data-required data-required-message="Describe the problem first." placeholder="Example: My bathroom ceiling is leaking and the switch near it sparks when I touch it." required></textarea>
+    </label>
+    <button class="btn ghost sm" type="button" style="justify-self:start" data-voice-target="aiProblem" data-voice-lang="en-IN">🎙️ Speak instead</button>
+    <div id="aiDescribeResult" class="v10-stack-sm"></div>
+    <div class="btn-row">
+      <button class="btn primary" type="submit" id="aiDescribeSubmit">Analyse &amp; plan mission →</button>
+      <button class="btn ghost" type="button" onclick="v10CloseSheet('aiDescribeSheet')">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<!-- QR scan sheet -->
+<div class="sheet" id="scanSheet" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+  <div class="sheet-grabber"></div>
+  <h3 id="scanTitle">Scan an appliance QR</h3>
+  <p class="muted">Every SmartServe Service Passport has a QR code. Scan it with your phone camera, or paste the passport link.</p>
+  <form id="scanForm" class="v10-stack-sm">
+    <label class="field">Passport link or code
+      <input class="input" id="scanValue" placeholder="https://…/asset/AbC123…" required>
+    </label>
+    <button class="btn primary" type="submit">Open Service Passport</button>
+  </form>
+  <div class="alert-strip info" style="margin-top:12px">
+    <span class="ico">🔒</span>
+    <span class="muted">QR codes contain only a secure token — never your phone number, address or service history.</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('aiDescribeForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  var button = document.getElementById('aiDescribeSubmit');
+  var restore = v10Loading(button, 'Analysing…');
+  var box = document.getElementById('aiDescribeResult');
+  try {
+    var data = await v10Api('/api/ai/analyze-v10', { method: 'POST', body: {
+      description: document.getElementById('aiProblem').value,
+      service_name: document.getElementById('aiService').value
+    }});
+    var analysis = data.analysis || {}, plan = data.plan || {};
+    box.innerHTML =
+      '<div class="alert-strip ' + (analysis.data_source === 'AI' ? 'info' : 'warn') + '">' +
+        '<span class="ico">' + (analysis.data_source === 'AI' ? '🤖' : '🧮') + '</span><span>' +
+        '<strong>' + (analysis.data_source === 'AI' ? 'Gemini assessment' : 'Offline rules assessment') + '</strong>' +
+        '<span class="muted" style="display:block">' + escapeHtml(analysis.disclaimer || '') + '</span></span></div>' +
+      '<div class="card" style="padding:12px"><strong class="small">Understanding</strong>' +
+        '<p class="muted" style="margin:4px 0 8px">' + escapeHtml(analysis.problem || '') + '</p>' +
+        '<strong class="small">Mission plan (' + (plan.tasks || []).length + ' tasks)</strong><ol class="muted" style="margin:6px 0 0;padding-left:18px">' +
+        (plan.tasks || []).map(function (task) { return '<li>' + escapeHtml(task.title) + ' — ' + escapeHtml(task.service_name || '') + '</li>'; }).join('') +
+        '</ol></div>' +
+      '<button class="btn success" type="button" onclick="v10CreateMission()">Create mission &amp; find providers →</button>';
+  } catch (error) {
+    v10Toast(error.message, 'error');
+  } finally { restore(); }
+});
+
+async function v10CreateMission() {
+  try {
+    var data = await v10Api('/api/missions', { method: 'POST', body: {
+      problem: document.getElementById('aiProblem').value,
+      service_name: document.getElementById('aiService').value
+    }});
+    v10Toast('Mission ' + data.mission_code + ' created.', 'success');
+    setTimeout(function () { location.href = data.redirect; }, 600);
+  } catch (error) { v10Toast(error.message, 'error'); }
+}
+
+document.getElementById('scanForm').addEventListener('submit', function (event) {
+  event.preventDefault();
+  var value = document.getElementById('scanValue').value.trim();
+  var match = value.match(/\/asset\/([A-Za-z0-9_\-]+)/);
+  if (match) { location.href = '/asset/' + match[1]; }
+  else if (/^[A-Za-z0-9_\-]{16,}$/.test(value)) { location.href = '/asset/' + value; }
+  else { v10Toast('That does not look like a SmartServe passport link.', 'warn'); }
+});
+</script>
+{% endblock %}
